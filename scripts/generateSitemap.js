@@ -36,7 +36,7 @@ const main = async () => {
         console.log("✅ Successfully connected to MongoDB");
 
         // Generate sitemap with database data
-        const baseUrl = process.env.BASE_URL || "https://eklabya.com";
+        const baseUrl = process.env.BASE_URL || "https://inxyme.com";
         console.log(`🗺️  Generating sitemap for: ${baseUrl}`);
 
         sitemap = await generateSitemap(baseUrl);
@@ -51,7 +51,7 @@ const main = async () => {
         );
 
         // Generate basic sitemap without database data
-        const baseUrl = process.env.BASE_URL || "https://eklabya.com";
+        const baseUrl = process.env.BASE_URL || "https://inxyme.com";
         sitemap = await generateSitemap(baseUrl, true); // true = fallback mode
 
         if (mongoose.connection.readyState === 1) {
@@ -62,7 +62,7 @@ const main = async () => {
       console.warn("⚠️  MongoDBURI not found, using fallback mode");
 
       // Generate basic sitemap without database data
-      const baseUrl = process.env.BASE_URL || "https://eklabya.com";
+      const baseUrl = process.env.BASE_URL || "https://inxyme.com";
       sitemap = await generateSitemap(baseUrl, true); // true = fallback mode
     }
 

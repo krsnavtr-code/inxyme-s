@@ -31,7 +31,7 @@ const emailConfig = {
   port: parseInt(process.env.SMTP_PORT || "587"),
   secure: process.env.SMTP_SECURE === "true",
   auth: {
-    user: process.env.SMTP_USER || "noreply@eklabya.com",
+    user: process.env.SMTP_USER || "noreply@inxyme.com",
     pass: process.env.SMTP_PASS || "your-email-password",
   },
   tls: {
@@ -89,7 +89,7 @@ export const sendOTP = async (req, res) => {
 
     // Send email with OTP
     const mailOptions = {
-      from: `Eklabya <${emailFrom}>`, // Sender address with name
+      from: `Inxyme <${emailFrom}>`, // Sender address with name
       to: email, // List of recipients
       subject: "Your OTP for Email Verification", // Subject line
       text: `Your OTP for email verification is: ${otp}. This OTP is valid for 10 minutes.`,
@@ -100,7 +100,7 @@ export const sendOTP = async (req, res) => {
           <p>Your OTP for email verification is: <strong>${otp}</strong></p>
           <p>This OTP is valid for 10 minutes.</p>
           <p>If you didn't request this OTP, please ignore this email.</p>
-          <p>Best regards,<br>Eklabya Team</p>
+          <p>Best regards,<br>Inxyme Team</p>
         </div>
       `,
     };
@@ -190,17 +190,17 @@ export const createCandidate = async (req, res) => {
   let profilePhotoPath = null;
 
   // Default values for email template
-  const myCompanyName = "Eklabya";
+  const myCompanyName = "Inxyme";
   const eventName = "Career Hiring Camp 2025";
   const eventDate = "November 9, 2025 - Sunday";
   const eventTime = "9:00 AM - 5:00 PM";
   const venue = "Mosaic Hotel Noida - C-1, C Block, Pocket C, Sector 18";
   const city = "Noida, Uttar Pradesh 201301";
   const mapLink = "https://maps.app.goo.gl/PjBJ8U51Kn1as9Aq6";
-  const supportEmail = "info@eklabya.com";
+  const supportEmail = "info@inxyme.com";
   const supportPhone = "9891030303";
-  const website = "https://eklabya.com";
-  const yourName = "Eklabya";
+  const website = "https://inxyme.com";
+  const yourName = "Inxyme";
 
   try {
     const {
@@ -327,9 +327,9 @@ export const createCandidate = async (req, res) => {
 
     // Send welcome email
     const welcomeMailOptions = {
-      from: `Eklabya <${emailFrom}>`,
+      from: `Inxyme <${emailFrom}>`,
       to: email,
-      subject: `Registration Confirmed — JobFair 2025 | Eklabya`,
+      subject: `Registration Confirmed — JobFair 2025 | Inxyme`,
       html: `
   <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f5f7fb; padding: 24px;">
     <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px; margin:0 auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(32,33,36,0.08);">
@@ -410,7 +410,7 @@ export const createCandidate = async (req, res) => {
             <ul style="margin:8px 0 0 18px; color:#4b5563; padding:0;">
               <li>Updated Resume</li>
               <li>College ID Card / Valid Photo ID</li>
-              <li>Eklabya Provided Invitation (Find Attached in this Email)</li>
+              <li>Inxyme Provided Invitation (Find Attached in this Email)</li>
               <li>Passport-size photograph (optional)</li>
             </ul>
           `
@@ -513,8 +513,8 @@ ${companyName}
         eventDate,
         venue,
         city,
-        qrCodeUrl: `https://eklabya.com/verify/${candidate._id}`,
-        logoUrl: "http://eklabya.com/api/upload/file/eKlabya-0644.png",
+        qrCodeUrl: `https://inxyme.com/verify/${candidate._id}`,
+        logoUrl: "http://inxyme.com/api/upload/file/eKlabya-0644.png",
       },
     );
 
@@ -567,7 +567,7 @@ ${companyName}
     // Send admin notification email
     const adminEmail = process.env.ADMIN_EMAIL_YAHOO || "anand24h@yahoo.com";
     const adminMailOptions = {
-      from: `Eklabya <${emailFrom}>`,
+      from: `Inxyme <${emailFrom}>`,
       to: adminEmail,
       subject: `New Candidate Registration: ${name}`,
       html: `

@@ -86,7 +86,7 @@ export const sendEmail = async ({
     });
 
     const mailOptions = {
-      from: `"${process.env.EMAIL_FROM_NAME || "Eklabya"}" <${fromEmail}>`,
+      from: `"${process.env.EMAIL_FROM_NAME || "Inxyme"}" <${fromEmail}>`,
       to: to,
       subject: subject,
       text: text,
@@ -331,7 +331,7 @@ export const sendHotLeadAlertEmail = async (contact, pageUrl) => {
         
         <p style="color: #d97706; font-weight: bold;">⚡ This is a hot lead - consider reaching out immediately!</p>
         
-        <p>Best regards,<br>The ${process.env.APP_NAME || "Eklabya"} Team</p>
+        <p>Best regards,<br>The ${process.env.APP_NAME || "Inxyme"} Team</p>
       </div>
     `;
 

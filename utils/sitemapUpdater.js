@@ -28,7 +28,7 @@ export const updateSitemap = async () => {
     }
 
     // Generate sitemap using existing connection
-    const baseUrl = process.env.BASE_URL || "https://www.eklabya.com";
+    const baseUrl = process.env.BASE_URL || "https://www.inxyme.com";
     const sitemap = await generateSitemap(baseUrl);
 
     // Save to client/public directory

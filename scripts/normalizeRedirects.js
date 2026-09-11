@@ -23,7 +23,10 @@ const normalizeRedirects = async () => {
       // Normalize sourceUrl - remove domain if present
       if (redirect.sourceUrl.includes("http")) {
         const oldSourceUrl = redirect.sourceUrl;
-        const newSourceUrl = redirect.sourceUrl.replace(/^https?:\/\/[^\/]+/, "");
+        const newSourceUrl = redirect.sourceUrl.replace(
+          /^https?:\/\/[^\/]+/,
+          "",
+        );
         if (newSourceUrl !== oldSourceUrl) {
           updates.sourceUrl = newSourceUrl;
           needsUpdate = true;
@@ -35,7 +38,10 @@ const normalizeRedirects = async () => {
       if (redirect.targetUrl.includes("http")) {
         // Keep full URLs as they are (external redirects)
         const url = new URL(redirect.targetUrl);
-        if (url.hostname === "www.eklabya.com" || url.hostname === "eklabya.com") {
+        if (
+          url.hostname === "www.inxyme.com" ||
+          url.hostname === "inxyme.com"
+        ) {
           // Convert internal URLs to relative paths
           const oldTargetUrl = redirect.targetUrl;
           const newTargetUrl = url.pathname + url.search;

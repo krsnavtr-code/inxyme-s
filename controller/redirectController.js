@@ -218,7 +218,7 @@ const getRedirectCandidates = (path, host, protocol) => {
   }
 
   // Add production domain candidates (very important for dev/staging and absolute redirects in DB)
-  const prodHosts = ["www.eklabya.com", "eklabya.com"];
+  const prodHosts = ["www.inxyme.com", "inxyme.com"];
   prodHosts.forEach((prodHost) => {
     candidates.push(`http://${prodHost}${path}`);
     candidates.push(`https://${prodHost}${path}`);

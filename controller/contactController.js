@@ -327,7 +327,7 @@ async function sendLeadToCRM(leadData) {
       {
         headers: {
           "Content-Type": "application/json",
-          "X-Eklabya-Token": crmToken,
+          "X-Inxyme-Token": crmToken,
         },
         timeout: 10000, // 10 seconds timeout limit
       },

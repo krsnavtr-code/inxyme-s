@@ -122,11 +122,11 @@ export const register = catchAsync(async (req, res, next) => {
   });
 
   // Send OTP email
-  const subject = "Verify Your Email - Eklabya";
+  const subject = "Verify Your Email - Inxyme";
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">Eklabya</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
         <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
       </div>
       
@@ -135,7 +135,7 @@ export const register = catchAsync(async (req, res, next) => {
         
         <p style="color: #666; margin-bottom: 20px;">
           Hello ${fullname || "User"},<br><br>
-          Thank you for registering with Eklabya. To complete your registration, 
+          Thank you for registering with Inxyme. To complete your registration, 
           please verify your email address using the OTP below:
         </p>
         
@@ -150,7 +150,7 @@ export const register = catchAsync(async (req, res, next) => {
         
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
           <p style="color: #999; font-size: 12px; margin: 0;">
-            If you didn't create an account with Eklabya, please ignore this email.
+            If you didn't create an account with Inxyme, please ignore this email.
           </p>
         </div>
       </div>
@@ -230,11 +230,11 @@ export const login = catchAsync(async (req, res, next) => {
     await user.save();
 
     // Send OTP email
-    const subject = "Admin Login Verification - Eklabya";
+    const subject = "Admin Login Verification - Inxyme";
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 24px;">Eklabya</h1>
+          <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
           <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
         </div>
         
@@ -684,11 +684,11 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   const resetURL = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
 
   // Send email
-  const subject = "Password Reset Request - Eklabya";
+  const subject = "Password Reset Request - Inxyme";
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">Eklabya</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
         <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
       </div>
       
@@ -697,7 +697,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
         
         <p style="color: #666; margin-bottom: 20px;">
           Hello ${user.fullname || "User"},<br><br>
-          We received a request to reset your password for your Eklabya account. 
+          We received a request to reset your password for your Inxyme account. 
           Click the button below to reset your password:
         </p>
         
@@ -854,20 +854,20 @@ export const verifyOTP = catchAsync(async (req, res, next) => {
     await user.save();
 
     // Send welcome email
-    const welcomeSubject = "Welcome to Eklabya - Your Journey Begins!";
+    const welcomeSubject = "Welcome to Inxyme - Your Journey Begins!";
     const welcomeHTML = `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 24px;">Eklabya</h1>
+          <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
           <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
-          <h2 style="color: #333; margin-top: 0;">Welcome to Eklabya!</h2>
+          <h2 style="color: #333; margin-top: 0;">Welcome to Inxyme!</h2>
           
           <p style="color: #666; margin-bottom: 20px;">
             Dear ${user.fullname || "User"},<br><br>
-            We're thrilled to have you join the Eklabya community! Your account has been successfully created and verified.
+            We're thrilled to have you join the Inxyme community! Your account has been successfully created and verified.
           </p>
           
           <div style="background: #fff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
@@ -912,7 +912,7 @@ export const verifyOTP = catchAsync(async (req, res, next) => {
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
             <p style="color: #999; font-size: 12px; margin: 0;">
               Best regards,<br>
-              The Eklabya Team
+              The Inxyme Team
             </p>
           </div>
         </div>
@@ -992,11 +992,11 @@ export const resendOTP = catchAsync(async (req, res, next) => {
     await user.save();
 
     // Send OTP email
-    const subject = "Verify Your Email - Eklabya";
+    const subject = "Verify Your Email - Inxyme";
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 24px;">Eklabya</h1>
+          <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
           <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
         </div>
         

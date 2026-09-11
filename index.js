@@ -96,16 +96,16 @@ const corsOptions = {
     const allowedOrigins = [
       "https://theeklavya.com",
       "https://www.theeklavya.com",
-      "https://eklabya.com",
-      "https://www.eklabya.com",
-      "https://admin.eklabya.com",
-      "https://connect.eklabya.com",
+      "https://inxyme.com",
+      "https://www.inxyme.com",
+      "https://admin.inxyme.com",
+      "https://connect.inxyme.com",
     ];
 
-    // Allow exact matches or any subdomain of eklabya.com
+    // Allow exact matches or any subdomain of inxyme.com
     if (
       allowedOrigins.includes(origin) ||
-      (origin && origin.endsWith(".eklabya.com"))
+      (origin && origin.endsWith(".inxyme.com"))
     ) {
       // console.log("CORS allowed request from origin:", origin); // Optional: Keep for debugging
       return callback(null, true);
@@ -142,7 +142,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Middleware for URL redirection from firstvite.com to eklabya.com and eklabya.com to www.eklabya.com
+// Middleware for URL redirection from firstvite.com to inxyme.com and inxyme.com to www.inxyme.com
 app.use((req, res, next) => {
   // Never redirect API routes or CORS preflight requests
   if (req.method === "OPTIONS" || req.path.startsWith("/api")) {
@@ -156,21 +156,21 @@ app.use((req, res, next) => {
     host &&
     (host.includes("firstvite.com") || host.startsWith("firstvite.com"))
   ) {
-    // Always redirect to HTTPS www.eklabya.com
-    const newUrl = `https://www.eklabya.com${req.originalUrl}`;
+    // Always redirect to HTTPS www.inxyme.com
+    const newUrl = `https://www.inxyme.com${req.originalUrl}`;
 
     // Perform permanent redirect (301)
     return res.redirect(301, newUrl);
   }
 
-  // Redirect from eklabya.com to www.eklabya.com for consistency
+  // Redirect from inxyme.com to www.inxyme.com for consistency
   if (
     host &&
-    (host === "eklabya.com" ||
-      (host.startsWith("eklabya.com") && !host.startsWith("www.")))
+    (host === "inxyme.com" ||
+      (host.startsWith("inxyme.com") && !host.startsWith("www.")))
   ) {
-    // Always redirect to HTTPS www.eklabya.com
-    const newUrl = `https://www.eklabya.com${req.originalUrl}`;
+    // Always redirect to HTTPS www.inxyme.com
+    const newUrl = `https://www.inxyme.com${req.originalUrl}`;
 
     // Perform permanent redirect (301)
     return res.redirect(301, newUrl);

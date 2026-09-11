@@ -796,7 +796,7 @@ export const sendBrochureEmail = async (req, res) => {
         <p>Thank you for your interest in <strong>${courseTitle}</strong>.</p>
         <p>Please find the course brochure attached to this email.</p>
         <p>If you have any questions, feel free to contact us.</p>
-        <p>Best regards,<br>Eklabya Team</p>
+        <p>Best regards,<br>Inxyme Team</p>
       </div>
     `;
 
