@@ -309,15 +309,21 @@ export const getAllCourses = async (req, res) => {
       ];
     }
 
-    // Handle published status filtering
-    // Handle isPublished filter if provided
-    if (isPublished === "true") {
+    // Handle published and draft status filtering
+    if (status === "published") {
       query.isPublished = true;
+      query.status = { $ne: "draft" };
+    } else if (status === "draft") {
+      query.$or = [{ isPublished: false }, { status: "draft" }];
+    } else if (isPublished === "true") {
+      query.isPublished = true;
+      query.status = { $ne: "draft" };
     } else if (isPublished === "false") {
-      query.isPublished = false;
+      query.$or = [{ isPublished: false }, { status: "draft" }];
     } else if (all !== "true" && !isAdmin) {
       // For non-admin users, only show published courses by default
       query.isPublished = true;
+      query.status = { $ne: "draft" };
     }
 
     // Handle showOnHome filter

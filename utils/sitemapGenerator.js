@@ -89,60 +89,71 @@ const generateSitemap = async (baseUrl, fallbackMode = false) => {
 
     if (!fallbackMode) {
       try {
-        // Get blog posts
+        // Get published blog posts only
         const blogPosts = await BlogPost.find({ status: "published" })
           .select("slug updatedAt")
           .maxTimeMS(10000)
           .lean();
         blogPosts.forEach((post) => {
-          dynamicPages.push({
-            url: `/blog/${post.slug}`,
-            changefreq: "weekly",
-            priority: 0.7,
-            lastmod: post.updatedAt,
-          });
+          if (post?.slug) {
+            dynamicPages.push({
+              url: `/blog/${post.slug}`,
+              changefreq: "weekly",
+              priority: 0.7,
+              lastmod: post.updatedAt,
+            });
+          }
         });
 
-        // Get courses (include all courses since status is undefined)
-        const courses = await Course.find({})
+        // Get only published courses (exclude drafts and unpublished courses)
+        const courses = await Course.find({
+          isPublished: true,
+          status: { $ne: "draft" },
+        })
           .select("slug updatedAt")
           .maxTimeMS(10000)
           .lean();
         courses.forEach((course) => {
-          dynamicPages.push({
-            url: `/course/${course.slug}`,
-            changefreq: "weekly",
-            priority: 0.8,
-            lastmod: course.updatedAt,
-          });
+          if (course?.slug) {
+            dynamicPages.push({
+              url: `/course/${course.slug}`,
+              changefreq: "weekly",
+              priority: 0.8,
+              lastmod: course.updatedAt,
+            });
+          }
         });
 
-        // Get categories
+        // Get active categories only
         const categories = await Category.find({ isActive: true })
           .select("slug updatedAt")
           .maxTimeMS(10000)
           .lean();
         categories.forEach((category) => {
-          dynamicPages.push({
-            url: `/courses/${category.slug}`,
-            changefreq: "weekly",
-            priority: 0.6,
-            lastmod: category.updatedAt,
-          });
+          if (category?.slug) {
+            dynamicPages.push({
+              url: `/courses/${category.slug}`,
+              changefreq: "weekly",
+              priority: 0.6,
+              lastmod: category.updatedAt,
+            });
+          }
         });
 
-        // Get careers
-        const careers = await Career.find({ status: "active" })
+        // Get active careers (exclude drafts and ensure slug exists)
+        const careers = await Career.find({ status: { $in: ["Open", "active"] } })
           .select("slug updatedAt")
           .maxTimeMS(10000)
           .lean();
         careers.forEach((career) => {
-          dynamicPages.push({
-            url: `/careers/${career.slug}`,
-            changefreq: "monthly",
-            priority: 0.6,
-            lastmod: career.updatedAt,
-          });
+          if (career?.slug) {
+            dynamicPages.push({
+              url: `/careers/${career.slug}`,
+              changefreq: "monthly",
+              priority: 0.6,
+              lastmod: career.updatedAt,
+            });
+          }
         });
       } catch (dbError) {
         console.warn(
@@ -152,21 +163,20 @@ const generateSitemap = async (baseUrl, fallbackMode = false) => {
       }
     }
 
+    // Deduplicate pages by URL (prefer dynamic with lastmod if available)
+    const pageMap = new Map();
+    staticPages.forEach((page) => {
+      pageMap.set(page.url, page);
+    });
+    dynamicPages.forEach((page) => {
+      pageMap.set(page.url, page);
+    });
+
     // Generate XML
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
 
-    // Add static pages
-    staticPages.forEach((page) => {
-      xml += "  <url>\n";
-      xml += `    <loc>${baseUrl}${page.url}</loc>\n`;
-      xml += `    <changefreq>${page.changefreq}</changefreq>\n`;
-      xml += `    <priority>${page.priority}</priority>\n`;
-      xml += "  </url>\n";
-    });
-
-    // Add dynamic pages
-    dynamicPages.forEach((page) => {
+    pageMap.forEach((page) => {
       xml += "  <url>\n";
       xml += `    <loc>${baseUrl}${page.url}</loc>\n`;
       if (page.lastmod) {

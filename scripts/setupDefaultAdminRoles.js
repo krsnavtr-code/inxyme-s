@@ -95,7 +95,7 @@ const defaultRoles = [
 const setupDefaultRoles = async () => {
   try {
     // Connect to database
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/eklabya');
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to database');
 
     // Clear existing roles (optional - remove if you want to keep existing roles)
@@ -105,7 +105,7 @@ const setupDefaultRoles = async () => {
     // Create default roles
     for (const roleData of defaultRoles) {
       const existingRole = await AdminRole.findOne({ name: roleData.name });
-      
+
       if (!existingRole) {
         const role = await AdminRole.create(roleData);
         console.log(`Created role: ${role.name}`);
@@ -115,7 +115,7 @@ const setupDefaultRoles = async () => {
     }
 
     console.log('Default admin roles setup completed!');
-    
+
     // Display created roles
     const roles = await AdminRole.find().sort({ name: 1 });
     console.log('\nAvailable Admin Roles:');

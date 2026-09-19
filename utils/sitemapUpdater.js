@@ -31,17 +31,22 @@ export const updateSitemap = async () => {
     const baseUrl = process.env.BASE_URL || "https://www.inxyme.com";
     const sitemap = await generateSitemap(baseUrl);
 
-    // Save to client/public directory
-    const outputPath = path.join(__dirname, "../../client/public/sitemap.xml");
+    // Save to nextclient/public and client/public directories if they exist
+    const targetPaths = [
+      path.join(__dirname, "../../nextclient/public/sitemap.xml"),
+      path.join(__dirname, "../../client/public/sitemap.xml"),
+    ];
 
-    // Ensure directory exists
-    const outputDir = path.dirname(outputPath);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
+    for (const outputPath of targetPaths) {
+      const outputDir = path.dirname(outputPath);
+      const appDir = path.dirname(outputDir);
+      if (fs.existsSync(appDir)) {
+        if (!fs.existsSync(outputDir)) {
+          fs.mkdirSync(outputDir, { recursive: true });
+        }
+        fs.writeFileSync(outputPath, sitemap, "utf8");
+      }
     }
-
-    // Write sitemap file
-    fs.writeFileSync(outputPath, sitemap, "utf8");
 
     // Show stats
     const urlCount = (sitemap.match(/<url>/g) || []).length;

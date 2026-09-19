@@ -127,7 +127,6 @@ export const register = catchAsync(async (req, res, next) => {
     <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
         <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
-        <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
       </div>
       
       <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
@@ -235,7 +234,6 @@ export const login = catchAsync(async (req, res, next) => {
       <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
-          <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
@@ -689,7 +687,6 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
         <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
-        <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
       </div>
       
       <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
@@ -859,7 +856,6 @@ export const verifyOTP = catchAsync(async (req, res, next) => {
       <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
-          <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
@@ -997,7 +993,6 @@ export const resendOTP = catchAsync(async (req, res, next) => {
       <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">Inxyme</h1>
-          <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">Centre of Excellence</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">

@@ -66,21 +66,25 @@ const main = async () => {
       sitemap = await generateSitemap(baseUrl, true); // true = fallback mode
     }
 
-    // Save to client/public directory
-    const outputPath = path.join(__dirname, "../../client/public/sitemap.xml");
+    // Save to nextclient/public and client/public directories if they exist
+    const targetPaths = [
+      path.join(__dirname, "../../nextclient/public/sitemap.xml"),
+      path.join(__dirname, "../../client/public/sitemap.xml"),
+    ];
 
-    // Ensure directory exists
-    const outputDir = path.dirname(outputPath);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-      console.log(`📁 Created directory: ${outputDir}`);
+    for (const targetPath of targetPaths) {
+      const outputDir = path.dirname(targetPath);
+      const appDir = path.dirname(outputDir);
+      if (fs.existsSync(appDir)) {
+        if (!fs.existsSync(outputDir)) {
+          fs.mkdirSync(outputDir, { recursive: true });
+        }
+        fs.writeFileSync(targetPath, sitemap, "utf8");
+        console.log(`📍 Saved to: ${targetPath}`);
+      }
     }
 
-    // Write sitemap file
-    fs.writeFileSync(outputPath, sitemap, "utf8");
-
     console.log(`✅ Sitemap generated successfully!`);
-    console.log(`📍 Saved to: ${outputPath}`);
 
     // Show stats
     const urlCount = (sitemap.match(/<url>/g) || []).length;

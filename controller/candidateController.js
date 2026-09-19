@@ -514,7 +514,7 @@ ${companyName}
         venue,
         city,
         qrCodeUrl: `https://inxyme.com/verify/${candidate._id}`,
-        logoUrl: "http://inxyme.com/api/upload/file/eKlabya-0644.png",
+        logoUrl: "https://www.inxyme.com/api/upload/file/final-logo-png-6483.png",
       },
     );
 
