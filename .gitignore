@@ -24,10 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Media & large uploads
-public/uploads/*.mp4
-public/uploads/*.mov
-public/uploads/*.avi
-public/uploads/*.mkv
-public/uploads/*.webm
-public/uploads/*.pdf
+# Uploads directory
+public/uploads/*
+!public/uploads/.gitkeep
