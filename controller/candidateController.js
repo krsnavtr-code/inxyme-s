@@ -270,11 +270,11 @@ export const createCandidate = async (req, res) => {
       ...(userType === "student"
         ? { course, college, university }
         : {
-            companyName,
-            isPaymentDone:
-              req.body.isPaymentDone === "true" ||
-              req.body.isPaymentDone === true,
-          }),
+          companyName,
+          isPaymentDone:
+            req.body.isPaymentDone === "true" ||
+            req.body.isPaymentDone === true,
+        }),
     };
 
     // Check if email already exists in the database
@@ -336,20 +336,18 @@ export const createCandidate = async (req, res) => {
       <tr>
         <td style="padding:20px 24px; text-align:left; background: linear-gradient(90deg,#4f46e5 0%, #6366f1 100%); color:#fff;">
           <h1 style="margin:0; font-size:20px; line-height:1.2;">Welcome, ${name}!</h1>
-          <p style="margin:6px 0 0; font-size:14px; opacity:0.95;">Your registration for <strong>${
-            eventName
-          }</strong> is confirmed.</p>
+          <p style="margin:6px 0 0; font-size:14px; opacity:0.95;">Your registration for <strong>${eventName
+        }</strong> is confirmed.</p>
         </td>
       </tr>
 
       <tr>
         <td style="padding:20px 24px;">
             <p style="margin:0 0 12px; font-size:15px; color:#111827;">
-                Thank you for registering for <strong>${eventName}</strong>, organized by <strong> <span style="color: rgb(30, 144, 255)">e</span><span style="color: rgb(244, 124, 38)">KLABYA</span> </ strong> in collaboration with our partner companies. We’re excited to have you ${
-                  userType === "student"
-                    ? "— this event will connect you directly with recruiters, provide skill sessions, and  create  real job & internship opportunities."
-                    : "— this event will connect you with talented students from multiple colleges, helping     you     discover the right candidates for your hiring needs."
-                }
+                Thank you for registering for <strong>${eventName}</strong>, organized by <strong> <span style="color: rgb(30, 144, 255)">e</span><span style="color: rgb(244, 124, 38)">KLABYA</span> </ strong> in collaboration with our partner companies. We’re excited to have you ${userType === "student"
+          ? "— this event will connect you directly with recruiters, provide skill sessions, and  create  real job & internship opportunities."
+          : "— this event will connect you with talented students from multiple colleges, helping     you     discover the right candidates for your hiring needs."
+        }
             </p>
 
 
@@ -385,27 +383,25 @@ export const createCandidate = async (req, res) => {
             </p>
 
             <ul style="margin:8px 0 0 18px; color:#4b5563; padding:0;">
-                ${
-                  userType === "student"
-                    ? `
+                ${userType === "student"
+          ? `
         <li>On-the-spot interviews & hiring opportunities</li>
         <li>Free career and skill-development sessions</li>
         <li>Interaction with top industry recruiters</li>
         <li>Participation certificate for all attendees</li>
       `
-                    : `
+          : `
         <li>Dedicated hiring booth with branding visibility</li>
         <li>Access to 2000+ qualified student profiles</li>
         <li>On-the-spot interview and selection opportunity</li>
         <li>Media exposure & recognition as hiring partner</li>
       `
-                }
+        }
         </ul>
 
 
-        ${
-          userType === "student"
-            ? `
+        ${userType === "student"
+          ? `
             <p style="margin:14px 0 8px; font-weight:600; color:#374151;">📋 What to Bring</p>
             <ul style="margin:8px 0 0 18px; color:#4b5563; padding:0;">
               <li>Updated Resume</li>
@@ -414,7 +410,7 @@ export const createCandidate = async (req, res) => {
               <li>Passport-size photograph (optional)</li>
             </ul>
           `
-            : ""
+          : ""
         }
           
 
@@ -514,7 +510,7 @@ ${companyName}
         venue,
         city,
         qrCodeUrl: `https://inxyme.com/verify/${candidate._id}`,
-        logoUrl: "https://www.inxyme.com/api/upload/file/final-logo-png-6483.png",
+        logoUrl: "https://www.inxyme.com/api/upload/file/Inxyme-logo-1003.jpeg",
       },
     );
 
@@ -561,7 +557,7 @@ ${companyName}
     welcomeMailOptions.html = welcomeMailOptions.html.replace(
       '<p style="margin:0 0 12px; font-size:15px; color:#111827;">',
       idCardSection +
-        '<p style="margin:0 0 12px; font-size:15px; color:#111827;">',
+      '<p style="margin:0 0 12px; font-size:15px; color:#111827;">',
     );
 
     // Send admin notification email
@@ -580,17 +576,16 @@ ${companyName}
                         <p><strong>Registration ID:</strong> ${registrationId}</p>
                         <p><strong>Email:</strong> ${email}</p>
                         <p><strong>Phone:</strong> ${phone}</p>
-                        ${
-                          userType === "student"
-                            ? `
+                        ${userType === "student"
+          ? `
                                 <p><strong>Course:</strong> ${course || "N/A"}</p>
                                 <p><strong>College:</strong> ${college || "N/A"}</p>
                                 <p><strong>University:</strong> ${university || "N/A"}</p>
                               `
-                            : `
+          : `
                                 <p><strong>Organization:</strong> ${companyName || "N/A"}</p>
                               `
-                        }
+        }
                           
                         <p><strong>Registration Date:</strong> ${new Date().toLocaleString()}</p>
                     </div>
@@ -610,13 +605,12 @@ Name: ${name}
 Registration ID: ${registrationId}
 Email: ${email}
 Phone: ${phone}
-${
-  userType === "student"
-    ? `Course: ${course || "N/A"}
+${userType === "student"
+          ? `Course: ${course || "N/A"}
 College: ${college || "N/A"}
 University: ${university || "N/A"}`
-    : `Organization: ${companyName || "N/A"}`
-}
+          : `Organization: ${companyName || "N/A"}`
+        }
 Registration Date: ${new Date().toLocaleString()}
 
 You can view all candidates in the admin dashboard.
