@@ -33,11 +33,14 @@ export const submitContactForm = async (req, res) => {
       req.body;
 
     // Check if this is a duplicate submission (same email and message within last 5 minutes)
-    const recentSubmission = await Contact.findOne({
+    const duplicateQuery = {
       email,
-      message,
       submittedAt: { $gt: new Date(Date.now() - 5 * 60 * 1000) }, // Last 5 minutes
-    });
+    };
+    if (message) {
+      duplicateQuery.message = message;
+    }
+    const recentSubmission = await Contact.findOne(duplicateQuery);
 
     if (recentSubmission) {
       return res.status(429).json({
@@ -52,11 +55,11 @@ export const submitContactForm = async (req, res) => {
 
     // Create new contact
     const contactData = {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
+      name: name?.trim() || "",
+      email: email?.trim().toLowerCase() || "",
       phone: phone?.trim(),
       subject: (subject || `Enquiry about ${courseTitle || "course"}`).trim(),
-      message: message.trim(),
+      message: message?.trim() || (courseTitle ? `Enquiry about ${courseTitle}` : "Lead from website"),
       status: "new",
       submittedAt: new Date(),
       ipAddress: req.ip,
