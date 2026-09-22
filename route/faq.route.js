@@ -20,12 +20,22 @@ const faqValidationRules = [
 // Public route
 router.get('/', faqController.getFAQs);
 
-// Admin routes (protected)
+// Admin routes (when mounted with full path)
+router.put('/admin/faqs/update-order', protect, admin, faqController.updateFAQOrder);
 router.get('/admin/faqs', protect, admin, faqController.getAllFAQs);
 router.get('/admin/faqs/:id', protect, admin, faqController.getFAQ);
 router.post('/admin/faqs', protect, admin, faqValidationRules, faqController.createFAQ);
 router.put('/admin/faqs/:id', protect, admin, faqValidationRules, faqController.updateFAQ);
 router.delete('/admin/faqs/:id', protect, admin, faqController.deleteFAQ);
-router.put('/admin/faqs/update-order', protect, admin, faqController.updateFAQOrder);
+
+// Dedicated admin router for mounting at /api/admin/faqs
+export const adminFaqRouter = express.Router();
+adminFaqRouter.use(protect, admin);
+adminFaqRouter.put('/update-order', faqController.updateFAQOrder);
+adminFaqRouter.get('/', faqController.getAllFAQs);
+adminFaqRouter.get('/:id', faqController.getFAQ);
+adminFaqRouter.post('/', faqValidationRules, faqController.createFAQ);
+adminFaqRouter.put('/:id', faqValidationRules, faqController.updateFAQ);
+adminFaqRouter.delete('/:id', faqController.deleteFAQ);
 
 export default router;

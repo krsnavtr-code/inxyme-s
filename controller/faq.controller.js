@@ -164,7 +164,7 @@ export const deleteFAQ = asyncHandler(async (req, res) => {
     throw new Error('FAQ not found');
   }
   
-  await faq.remove();
+  await FAQ.findByIdAndDelete(req.params.id);
   
   res.json({
     success: true,
