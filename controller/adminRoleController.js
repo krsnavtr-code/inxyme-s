@@ -129,16 +129,30 @@ export const deleteAdminRole = catchAsync(async (req, res, next) => {
 
 // Get all admin users with their roles
 export const getAdminUsers = catchAsync(async (req, res, next) => {
-  const adminUsers = await User.find({ role: "admin" })
+  const adminUsers = await User.find({
+    $or: [
+      { role: "admin" },
+      { role: "employee" },
+      { adminRoleId: { $exists: true, $ne: null } },
+    ],
+  })
     .select("+adminPermissions +adminRoleId")
     .populate("adminRoleId", "name description")
     .sort({ createdAt: -1 });
 
+  const formattedUsers = adminUsers.map((u) => {
+    const userObj = u.toObject ? u.toObject() : { ...u };
+    if (userObj.adminPermissions instanceof Map) {
+      userObj.adminPermissions = Object.fromEntries(userObj.adminPermissions);
+    }
+    return userObj;
+  });
+
   res.status(200).json({
     status: "success",
-    results: adminUsers.length,
+    results: formattedUsers.length,
     data: {
-      users: adminUsers,
+      users: formattedUsers,
     },
   });
 });
@@ -159,15 +173,25 @@ export const createAdminUser = catchAsync(async (req, res, next) => {
     return next(new AppError("Invalid admin role specified", 400));
   }
 
-  // Create permissions object from role permissions (convert Map to plain object for MongoDB)
+  // Create permissions object from role permissions
+  // Users with assigned pages get full CRUD (canView, canCreate, canEdit, canDelete) on those pages
   const adminPermissions = {};
   role.permissions.forEach((perm) => {
-    adminPermissions[perm.page] = {
-      canView: perm.canView,
-      canCreate: perm.canCreate,
-      canEdit: perm.canEdit,
-      canDelete: perm.canDelete,
-    };
+    if (perm.canView !== false) {
+      adminPermissions[perm.page] = {
+        canView: true,
+        canCreate: true,
+        canEdit: true,
+        canDelete: true,
+      };
+    } else {
+      adminPermissions[perm.page] = {
+        canView: false,
+        canCreate: false,
+        canEdit: false,
+        canDelete: false,
+      };
+    }
   });
 
   const user = await User.create({
@@ -181,9 +205,18 @@ export const createAdminUser = catchAsync(async (req, res, next) => {
   });
 
   // Don't return password and sensitive fields
-  const userResponse = await User.findById(user._id)
+  const userResponseDoc = await User.findById(user._id)
     .select("+adminPermissions +adminRoleId")
     .populate("adminRoleId", "name description");
+
+  const userResponse = userResponseDoc.toObject
+    ? userResponseDoc.toObject()
+    : { ...userResponseDoc };
+  if (userResponse.adminPermissions instanceof Map) {
+    userResponse.adminPermissions = Object.fromEntries(
+      userResponse.adminPermissions,
+    );
+  }
 
   res.status(201).json({
     status: "success",
@@ -202,7 +235,7 @@ export const updateAdminUserRole = catchAsync(async (req, res, next) => {
     return next(new AppError("No user found with that ID", 404));
   }
 
-  if (user.role !== "admin") {
+  if (user.role !== "admin" && user.role !== "employee" && !user.adminRoleId) {
     return next(new AppError("This user is not an admin", 400));
   }
 
@@ -212,15 +245,25 @@ export const updateAdminUserRole = catchAsync(async (req, res, next) => {
     return next(new AppError("Invalid admin role specified", 400));
   }
 
-  // Create permissions object from role permissions (convert Map to plain object for MongoDB)
+  // Create permissions object from role permissions
+  // Users with assigned pages get full CRUD (canView, canCreate, canEdit, canDelete) on those pages
   const adminPermissions = {};
   role.permissions.forEach((perm) => {
-    adminPermissions[perm.page] = {
-      canView: perm.canView,
-      canCreate: perm.canCreate,
-      canEdit: perm.canEdit,
-      canDelete: perm.canDelete,
-    };
+    if (perm.canView !== false) {
+      adminPermissions[perm.page] = {
+        canView: true,
+        canCreate: true,
+        canEdit: true,
+        canDelete: true,
+      };
+    } else {
+      adminPermissions[perm.page] = {
+        canView: false,
+        canCreate: false,
+        canEdit: false,
+        canDelete: false,
+      };
+    }
   });
 
   // Build update object with fields that are provided
@@ -229,12 +272,21 @@ export const updateAdminUserRole = catchAsync(async (req, res, next) => {
   if (email) updateData.email = email;
 
   // Update user role, permissions, and optionally fullname/email
-  const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, {
+  const updatedUserDoc = await User.findByIdAndUpdate(req.params.id, updateData, {
     new: true,
     runValidators: true,
   })
     .select("+adminPermissions +adminRoleId")
     .populate("adminRoleId", "name description");
+
+  const updatedUser = updatedUserDoc.toObject
+    ? updatedUserDoc.toObject()
+    : { ...updatedUserDoc };
+  if (updatedUser.adminPermissions instanceof Map) {
+    updatedUser.adminPermissions = Object.fromEntries(
+      updatedUser.adminPermissions,
+    );
+  }
 
   res.status(200).json({
     status: "success",

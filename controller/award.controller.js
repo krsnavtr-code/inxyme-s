@@ -143,8 +143,14 @@ export const getAwardBySlug = catchAsync(async (req, res, next) => {
     return next(new AppError("No award found with that slug", 404));
   }
 
-  // If not admin, only return published awards
-  if (award.status !== "published" && (!req.user || req.user.role !== "admin")) {
+  // If not admin/employee, only return published awards
+  const isAuthorizedAdmin =
+    req.user &&
+    (req.user.role === "admin" ||
+      req.user.role === "employee" ||
+      Boolean(req.user.adminRoleId));
+
+  if (award.status !== "published" && !isAuthorizedAdmin) {
     return next(new AppError("This award is not published", 403));
   }
 

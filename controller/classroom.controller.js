@@ -145,11 +145,14 @@ export const startClassroomSession = asyncHandler(async (req, res) => {
     });
   }
 
-  // Verify user is the teacher or admin
-  if (
-    session.teacher.toString() !== req.user._id.toString() &&
-    req.user.role !== "admin"
-  ) {
+  // Verify user is the teacher or admin/employee
+  const isTeacherOrAdmin =
+    session.teacher.toString() === req.user._id.toString() ||
+    req.user.role === "admin" ||
+    req.user.role === "employee" ||
+    Boolean(req.user.adminRoleId);
+
+  if (!isTeacherOrAdmin) {
     return res.status(403).json({
       success: false,
       message: "Only the teacher or admin can start this session",
@@ -187,11 +190,14 @@ export const endClassroomSession = asyncHandler(async (req, res) => {
     });
   }
 
-  // Verify user is the teacher or admin
-  if (
-    session.teacher.toString() !== req.user._id.toString() &&
-    req.user.role !== "admin"
-  ) {
+  // Verify user is the teacher or admin/employee
+  const canEnd =
+    session.teacher.toString() === req.user._id.toString() ||
+    req.user.role === "admin" ||
+    req.user.role === "employee" ||
+    Boolean(req.user.adminRoleId);
+
+  if (!canEnd) {
     return res.status(403).json({
       success: false,
       message: "Only the teacher or admin can end this session",

@@ -117,8 +117,14 @@ export const updateDiscussion = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Discussion not found' });
     }
 
-    // Check if user is the owner or admin
-    if (discussion.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    // Check if user is the owner or admin/employee
+    const isAuthorizedUser =
+      discussion.user.toString() === req.user.id ||
+      req.user.role === 'admin' ||
+      req.user.role === 'employee' ||
+      Boolean(req.user.adminRoleId);
+
+    if (!isAuthorizedUser) {
       return res.status(401).json({ success: false, message: 'Not authorized to update this discussion' });
     }
 
@@ -146,8 +152,14 @@ export const deleteDiscussion = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Discussion not found' });
     }
 
-    // Check if user is the owner or admin
-    if (discussion.user.toString() !== req.user.id && req.user.role !== 'admin') {
+    // Check if user is the owner or admin/employee
+    const isAuthorizedToDelete =
+      discussion.user.toString() === req.user.id ||
+      req.user.role === 'admin' ||
+      req.user.role === 'employee' ||
+      Boolean(req.user.adminRoleId);
+
+    if (!isAuthorizedToDelete) {
       return res.status(401).json({ success: false, message: 'Not authorized to delete this discussion' });
     }
 
@@ -366,8 +378,13 @@ export const togglePinDiscussion = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Discussion not found' });
     }
 
-    // Check if user is admin
-    if (req.user.role !== 'admin') {
+    // Check if user is admin/employee
+    const isAuthorizedAdmin =
+      req.user.role === 'admin' ||
+      req.user.role === 'employee' ||
+      Boolean(req.user.adminRoleId);
+
+    if (!isAuthorizedAdmin) {
       return res.status(401).json({ success: false, message: 'Not authorized to pin discussions' });
     }
 
@@ -393,7 +410,13 @@ export const toggleLockDiscussion = async (req, res) => {
     }
 
     // Check if user is admin or moderator
-    if (req.user.role !== 'admin' && req.user.role !== 'moderator') {
+    const canLock =
+      req.user.role === 'admin' ||
+      req.user.role === 'employee' ||
+      req.user.role === 'moderator' ||
+      Boolean(req.user.adminRoleId);
+
+    if (!canLock) {
       return res.status(401).json({ success: false, message: 'Not authorized to lock discussions' });
     }
 

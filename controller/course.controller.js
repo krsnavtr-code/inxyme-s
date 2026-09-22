@@ -269,7 +269,11 @@ export const getAllCourses = async (req, res) => {
 
     const query = {};
 
-    const isAdmin = req.user && req.user.role === "admin";
+    const isAdmin =
+      req.user &&
+      (req.user.role === "admin" ||
+        req.user.role === "employee" ||
+        Boolean(req.user.adminRoleId));
 
     // Handle category filtering and restrict non-admin to active categories only
     if (all !== "true" && !isAdmin) {

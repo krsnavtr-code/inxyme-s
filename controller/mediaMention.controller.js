@@ -144,7 +144,8 @@ export const getMediaMentionBySlug = catchAsync(async (req, res, next) => {
   }
 
   // If not admin, only return published mentions
-  if (mention.status !== "published" && (!req.user || req.user.role !== "admin")) {
+  const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "employee" || Boolean(req.user.adminRoleId));
+  if (mention.status !== "published" && !isAdmin) {
     return next(new AppError("This media mention is not published", 403));
   }
 

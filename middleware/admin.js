@@ -42,12 +42,19 @@ export const isAdmin = async (req, res, next) => {
       });
     }
 
-    if (user.role !== "admin") {
+    const isAuthorized =
+      user.role === "admin" ||
+      user.role === "employee" ||
+      Boolean(user.adminRoleId);
+
+    if (!isAuthorized) {
       return res.status(403).json({
         success: false,
         message: "Admin access required",
       });
     }
+
+    req.user = user;
 
     // Populate admin role and permissions if user has a role
     if (user.adminRoleId) {
@@ -58,7 +65,6 @@ export const isAdmin = async (req, res, next) => {
       }
     }
 
-    req.user = user;
     next();
   } catch (error) {
     console.error("Admin middleware error:", error);

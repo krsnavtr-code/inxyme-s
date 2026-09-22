@@ -322,8 +322,9 @@ export const getPaymentDetails = async (req, res) => {
     }
 
     // Check if the user is authorized to view this payment
-    // (Only admin or the user who made the payment)
-    if (payment.userId && payment.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+    // (Only admin/employee or the user who made the payment)
+    const isAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'employee' || Boolean(req.user.adminRoleId));
+    if (payment.userId && payment.userId.toString() !== req.user.id && !isAdmin) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this payment'

@@ -77,9 +77,12 @@ router.get('/me', protect, async (req, res) => {
 // @route   GET /api/applications/job/:jobId
 // @desc    Get all applications for a specific job
 // @access  Private (Admin)
+const isAuthorizedAdmin = (user) =>
+  user && (user.role === 'admin' || user.role === 'employee' || Boolean(user.adminRoleId));
+
 router.get('/job/:jobId', protect, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isAuthorizedAdmin(req.user)) {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 
@@ -99,7 +102,7 @@ router.get('/job/:jobId', protect, async (req, res) => {
 // @access  Private (Admin)
 router.put('/:id/status', protect, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isAuthorizedAdmin(req.user)) {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 
@@ -138,7 +141,7 @@ router.delete('/:id', protect, async (req, res) => {
     }
 
     // Check if user is authorized
-    if (req.user.role !== 'admin' && application.studentId.toString() !== req.user.id) {
+    if (!isAuthorizedAdmin(req.user) && application.studentId.toString() !== req.user.id) {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 

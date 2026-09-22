@@ -182,6 +182,18 @@ export const register = catchAsync(async (req, res, next) => {
   }
 });
 
+// Helper to convert Mongoose Map to plain object for proper JSON serialization
+const formatAdminPermissions = (permissions) => {
+  if (!permissions) return {};
+  if (permissions instanceof Map || typeof permissions.entries === "function") {
+    return Object.fromEntries(permissions);
+  }
+  if (typeof permissions.toObject === "function") {
+    return permissions.toObject();
+  }
+  return permissions;
+};
+
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
 // @access  Public
@@ -217,8 +229,12 @@ export const login = catchAsync(async (req, res, next) => {
     return next(new AppError("Invalid email or password", 401));
   }
 
-  // Check if user is admin - if so, require OTP verification
-  if (user.role === "admin") {
+  // Check if user is admin or employee with role - if so, require OTP verification
+  if (
+    user.role === "admin" ||
+    user.role === "employee" ||
+    Boolean(user.adminRoleId)
+  ) {
     // Generate OTP for admin login
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
@@ -373,8 +389,12 @@ export const verifyAdminOTP = catchAsync(async (req, res, next) => {
       return next(new AppError("No user found with that email address", 404));
     }
 
-    // Check if user is admin
-    if (user.role !== "admin") {
+    // Check if user is admin or employee with role
+    if (
+      user.role !== "admin" &&
+      user.role !== "employee" &&
+      !user.adminRoleId
+    ) {
       return next(
         new AppError("OTP verification is only for admin users", 400),
       );
@@ -465,7 +485,7 @@ export const verifyAdminOTP = catchAsync(async (req, res, next) => {
       phone: user.phone || "",
       address: user.address || "",
       adminRoleId: user.adminRoleId,
-      adminPermissions: user.adminPermissions,
+      adminPermissions: formatAdminPermissions(user.adminPermissions),
     };
 
     res.json({
@@ -508,7 +528,7 @@ export const getUserProfile = catchAsync(async (req, res, next) => {
         phone: user.phone || "",
         address: user.address || "",
         adminRoleId: user.adminRoleId,
-        adminPermissions: user.adminPermissions || {},
+        adminPermissions: formatAdminPermissions(user.adminPermissions),
         discount: user.discount || 0,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -641,7 +661,7 @@ export const refreshToken = catchAsync(async (req, res, next) => {
         role: user.role,
         isApproved: user.isApproved,
         adminRoleId: user.adminRoleId,
-        adminPermissions: user.adminPermissions || {},
+        adminPermissions: formatAdminPermissions(user.adminPermissions),
       },
     });
   } catch (error) {

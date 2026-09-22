@@ -196,8 +196,9 @@ export const getMyEnrollments = asyncHandler(async (req, res) => {
       });
     }
 
-    // If userId is provided and user is admin, use that userId
-    if (req.query.userId && req.user.role === "admin") {
+    // If userId is provided and user is admin/employee, use that userId
+    const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "employee" || Boolean(req.user.adminRoleId));
+    if (req.query.userId && isAdmin) {
       query.user = req.query.userId;
     } else {
       // For regular users, only return their non-guest enrollments

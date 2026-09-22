@@ -40,7 +40,7 @@ export const protect = async (req, res, next) => {
       }
       
       // Find the user and attach to request object
-      const user = await User.findById(userId).select('-password');
+      const user = await User.findById(userId).select('-password +adminPermissions +adminRoleId');
       if (!user) {
         console.error('User not found with ID:', userId);
         return res.status(401).json({
@@ -54,7 +54,9 @@ export const protect = async (req, res, next) => {
         _id: user._id,
         id: user._id.toString(),
         email: user.email,
-        role: user.role
+        role: user.role,
+        adminRoleId: user.adminRoleId,
+        adminPermissions: user.adminPermissions,
       };
       
       next();
@@ -84,7 +86,13 @@ export const authorize = (...roles) => {
       });
     }
     
-    if (!roles.includes(req.user.role)) {
+    const isAdminAllowed = roles.includes("admin");
+    const isAuthorized =
+      roles.includes(req.user.role) ||
+      (isAdminAllowed &&
+        (req.user.role === "employee" || Boolean(req.user.adminRoleId)));
+
+    if (!isAuthorized) {
       return res.status(403).json({
         success: false,
         message: `User role ${req.user.role} is not authorized to access this route`

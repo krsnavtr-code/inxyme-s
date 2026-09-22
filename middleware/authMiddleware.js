@@ -170,8 +170,13 @@ export const protect = async (req, res, next) => {
       // Attach user to request object
       req.user = currentUser;
 
-      // Populate admin permissions if user is admin
-      if (currentUser.role === "admin" && currentUser.adminRoleId) {
+      // Populate admin permissions if user is admin or employee with role
+      if (
+        (currentUser.role === "admin" ||
+          currentUser.role === "employee" ||
+          currentUser.adminRoleId) &&
+        currentUser.adminRoleId
+      ) {
         try {
           const adminUser = await User.findById(currentUser._id)
             .select("+adminPermissions +adminRoleId")
@@ -220,7 +225,12 @@ export const protect = async (req, res, next) => {
 };
 
 export const admin = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  if (
+    req.user &&
+    (req.user.role === "admin" ||
+      req.user.role === "employee" ||
+      Boolean(req.user.adminRoleId))
+  ) {
     next();
   } else {
     res.status(403).json({
@@ -232,8 +242,14 @@ export const admin = (req, res, next) => {
 
 export const restrictTo = (...roles) => {
   return (req, res, next) => {
-    // roles ['admin', 'teacher']. role='user'
-    if (!roles.includes(req.user.role)) {
+    const isAdminAllowed = roles.includes("admin");
+    const isAuthorized =
+      req.user &&
+      (roles.includes(req.user.role) ||
+        (isAdminAllowed &&
+          (req.user.role === "employee" || Boolean(req.user.adminRoleId))));
+
+    if (!isAuthorized) {
       return next(
         new AppError("You do not have permission to perform this action", 403),
       );

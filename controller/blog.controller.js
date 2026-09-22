@@ -109,7 +109,8 @@ export const getBlogPost = catchAsync(async (req, res, next) => {
   }
 
   // If not admin, only return published posts
-  if (post.status !== "published" && (!req.user || req.user.role !== "admin")) {
+  const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "employee" || Boolean(req.user.adminRoleId));
+  if (post.status !== "published" && !isAdmin) {
     return next(new AppError("This blog post is not published", 403));
   }
 

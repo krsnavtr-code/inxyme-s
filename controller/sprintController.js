@@ -65,8 +65,12 @@ export const getSprintsByCourse = catchAsync(async (req, res, next) => {
   const { courseId } = req.params;
   const userId = req.user.id;
 
-  // Check if user is enrolled in the course or is an admin
-  if (req.user.role !== 'admin') {
+  // Check if user is enrolled in the course or is an admin/employee
+  if (
+    req.user.role !== 'admin' &&
+    req.user.role !== 'employee' &&
+    !req.user.adminRoleId
+  ) {
     const enrollment = await Enrollment.findOne({
       $or: [
         { user: userId, course: courseId, status: { $ne: 'cancelled' } },

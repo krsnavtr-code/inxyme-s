@@ -3,12 +3,15 @@ const router = express.Router();
 import { protect, authorize } from '../middleware/auth.js';
 import Career from '../model/Career.js';
 
+const isAuthorizedAdmin = (user) =>
+  user && (user.role === 'admin' || user.role === 'employee' || Boolean(user.adminRoleId));
+
 // @route   POST api/careers
 // @desc    Create a new job posting
 // @access  Private (Admin)
 router.post('/', protect, authorize('admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isAuthorizedAdmin(req.user)) {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 
@@ -89,7 +92,7 @@ router.get('/:id', async (req, res) => {
 // @access  Private (Admin)
 router.put('/:id', protect, authorize('admin'), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isAuthorizedAdmin(req.user)) {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 
@@ -117,7 +120,7 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
 // @access  Private (Admin)
 router.put('/assign/:id', protect, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isAuthorizedAdmin(req.user)) {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 
@@ -149,7 +152,7 @@ router.put('/assign/:id', protect, async (req, res) => {
 // @access  Private (Admin)
 router.delete('/:id', protect, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isAuthorizedAdmin(req.user)) {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 

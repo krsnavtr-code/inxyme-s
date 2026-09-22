@@ -17,7 +17,8 @@ router.route("/").post(enrollInCourse);
 // Regular users can only view their own enrollments
 router.route("/my-enrollments").get(protect, (req, res, next) => {
   // If userId is provided and user is admin, allow viewing other user's enrollments
-  if (req.query.userId && req.user.role === "admin") {
+  const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "employee" || Boolean(req.user.adminRoleId));
+  if (req.query.userId && isAdmin) {
     return getMyEnrollments(req, res, next);
   }
   // Otherwise, only allow viewing own enrollments

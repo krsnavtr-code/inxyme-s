@@ -1,11 +1,30 @@
 import AppError from "../utils/appError.js";
 
-// Check if admin user has permission for a specific page and action
+// Helper function to extract permission object for a page from Map or plain object
+const getPagePermission = (userPermissions, page) => {
+  if (!userPermissions) return null;
+  if (userPermissions instanceof Map || typeof userPermissions.get === "function") {
+    return userPermissions.get(page) || null;
+  }
+  return userPermissions[page] || null;
+};
+
+// Check if user has admin/employee authorization
+const isUserAdminOrEmployee = (user) => {
+  if (!user) return false;
+  return (
+    user.role === "admin" ||
+    user.role === "employee" ||
+    Boolean(user.adminRoleId)
+  );
+};
+
+// Check if admin/employee user has permission for a specific page and action
 export const checkPermission = (page, action = "canView") => {
   return async (req, res, next) => {
     try {
-      // Only check permissions for admin users
-      if (!req.user || req.user.role !== "admin") {
+      // Only check permissions for admin/employee users
+      if (!isUserAdminOrEmployee(req.user)) {
         return next(new AppError("Admin access required", 403));
       }
 
@@ -14,11 +33,9 @@ export const checkPermission = (page, action = "canView") => {
         return next();
       }
 
-      // Get user permissions (they should be populated by auth middleware)
-      const userPermissions = req.user.adminPermissions || {};
-
-      // Get permission for this specific page
-      const pagePermission = userPermissions[page];
+      // Get user permissions
+      const userPermissions = req.user.adminPermissions;
+      const pagePermission = getPagePermission(userPermissions, page);
 
       if (!pagePermission) {
         return next(
@@ -26,18 +43,22 @@ export const checkPermission = (page, action = "canView") => {
         );
       }
 
-      // Check specific action permission
-      if (!pagePermission[action]) {
-        const actionText = action.replace("can", "").toLowerCase();
-        return next(
-          new AppError(
-            `You do not have permission to ${actionText} ${page}`,
-            403,
-          ),
-        );
+      // If the user has permission to this page (canView is true),
+      // allow all CRUD actions (canView, canCreate, canEdit, canDelete) on this page
+      if (
+        pagePermission.canView === true ||
+        (action && pagePermission[action] === true)
+      ) {
+        return next();
       }
 
-      next();
+      const actionText = action.replace("can", "").toLowerCase();
+      return next(
+        new AppError(
+          `You do not have permission to ${actionText} ${page}`,
+          403,
+        ),
+      );
     } catch (error) {
       return next(new AppError("Permission check failed", 500));
     }
@@ -47,14 +68,17 @@ export const checkPermission = (page, action = "canView") => {
 // Middleware to populate admin permissions for the current user
 export const populateAdminPermissions = async (req, res, next) => {
   try {
-    if (req.user && req.user.role === "admin") {
+    if (isUserAdminOrEmployee(req.user)) {
       // Populate admin permissions if not already loaded
-      if (
-        !req.user.adminPermissions ||
-        Object.keys(req.user.adminPermissions).length === 0
-      ) {
-        const user = await req.user.constructor
-          .findById(req.user._id)
+      const hasPermissions =
+        req.user.adminPermissions &&
+        (req.user.adminPermissions instanceof Map
+          ? req.user.adminPermissions.size > 0
+          : Object.keys(req.user.adminPermissions).length > 0);
+
+      if (!hasPermissions) {
+        const User = req.user.constructor;
+        const user = await User.findById(req.user._id || req.user.id)
           .select("+adminPermissions +adminRoleId")
           .populate("adminRoleId", "permissions");
 
@@ -74,7 +98,7 @@ export const populateAdminPermissions = async (req, res, next) => {
 export const checkMultiplePermissions = (permissions, requireAll = true) => {
   return async (req, res, next) => {
     try {
-      if (!req.user || req.user.role !== "admin") {
+      if (!isUserAdminOrEmployee(req.user)) {
         return next(new AppError("Admin access required", 403));
       }
 
@@ -83,14 +107,17 @@ export const checkMultiplePermissions = (permissions, requireAll = true) => {
         return next();
       }
 
-      const userPermissions = req.user.adminPermissions || {};
+      const userPermissions = req.user.adminPermissions;
 
       if (requireAll) {
         // Require ALL permissions (AND logic)
         for (const { page, action = "canView" } of permissions) {
-          const pagePermission = userPermissions[page];
+          const pagePermission = getPagePermission(userPermissions, page);
 
-          if (!pagePermission || !pagePermission[action]) {
+          if (
+            !pagePermission ||
+            (pagePermission.canView !== true && pagePermission[action] !== true)
+          ) {
             return next(
               new AppError(`You do not have required permissions`, 403),
             );
@@ -100,9 +127,12 @@ export const checkMultiplePermissions = (permissions, requireAll = true) => {
         // Require ANY permission (OR logic)
         let hasAnyPermission = false;
         for (const { page, action = "canView" } of permissions) {
-          const pagePermission = userPermissions[page];
+          const pagePermission = getPagePermission(userPermissions, page);
 
-          if (pagePermission && pagePermission[action]) {
+          if (
+            pagePermission &&
+            (pagePermission.canView === true || pagePermission[action] === true)
+          ) {
             hasAnyPermission = true;
             break;
           }
@@ -124,7 +154,7 @@ export const checkMultiplePermissions = (permissions, requireAll = true) => {
 
 // Get user's accessible pages for UI rendering
 export const getAccessiblePages = (user) => {
-  if (!user || user.role !== "admin") {
+  if (!isUserAdminOrEmployee(user)) {
     return [];
   }
 
@@ -153,9 +183,17 @@ export const getAccessiblePages = (user) => {
   const userPermissions = user.adminPermissions || {};
   const accessiblePages = [];
 
-  for (const [page, permissions] of Object.entries(userPermissions)) {
-    if (permissions.canView) {
-      accessiblePages.push(page);
+  if (userPermissions instanceof Map || typeof userPermissions.entries === "function") {
+    for (const [page, permissions] of userPermissions.entries()) {
+      if (permissions && permissions.canView) {
+        accessiblePages.push(page);
+      }
+    }
+  } else {
+    for (const [page, permissions] of Object.entries(userPermissions)) {
+      if (permissions && permissions.canView) {
+        accessiblePages.push(page);
+      }
     }
   }
 
