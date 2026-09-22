@@ -17,6 +17,11 @@ export const protect = async (req, res, next) => {
       console.log('No token found in headers');
     }
 
+    // Clean token
+    if (token) {
+      token = token.trim().replace(/^["']|["']$/g, '');
+    }
+
     // Check if no token
     if (!token) {
       return res.status(401).json({ 
@@ -24,10 +29,18 @@ export const protect = async (req, res, next) => {
         message: 'Not authorized to access this route. No token provided.'
       });
     }
-    
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+      } catch (err) {
+        if (process.env.JWT_REFRESH_SECRET) {
+          decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+        } else {
+          throw err;
+        }
+      }
       
       // Get user from the token - check for both 'id' and 'userId' in the token
       const userId = decoded.id || decoded.userId || decoded._id;
@@ -64,7 +77,8 @@ export const protect = async (req, res, next) => {
       console.error('Token verification error:', error);
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route. Invalid token.'
+        message: 'Not authorized to access this route. Invalid token.',
+        error: error.message
       });
     }
   } catch (error) {
