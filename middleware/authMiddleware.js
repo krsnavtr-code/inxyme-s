@@ -140,9 +140,10 @@ export const protect = async (req, res, next) => {
       }
 
       // Get user from the token
-      const currentUser = await User.findById(decoded.id).select("-password");
+      const targetUserId = decoded.id || decoded.userId || decoded._id;
+      const currentUser = await User.findById(targetUserId).select("-password");
       if (!currentUser) {
-        console.error("User not found for ID:", decoded.id);
+        console.error("User not found for ID:", targetUserId);
         return res.status(401).json({
           success: false,
           message: "The user belonging to this token no longer exists.",

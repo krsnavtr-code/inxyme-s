@@ -11,7 +11,14 @@ const PING_INTERVAL = 10000; // 10 seconds
 export const initializeSocketServer = (httpServer) => {
   const io = new Server(httpServer, {
     cors: {
-      origin: "https://www.inxyme.com",
+      origin: [
+        "https://www.inxyme.com",
+        "https://inxyme.com",
+        "https://admin.inxyme.com",
+        // "http://localhost:5173",
+        // "http://localhost:5174",
+        // "http://localhost:3000",
+      ],
       methods: ["GET", "POST"],
       credentials: true,
     },

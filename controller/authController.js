@@ -58,6 +58,7 @@ const generateToken = (id) => {
   return jwt.sign(
     {
       id, // Store the user ID as 'id' in the token payload
+      userId: id,
       type: "access",
       iat: Math.floor(Date.now() / 1000), // Issued at time
     },
@@ -626,7 +627,9 @@ export const refreshToken = catchAsync(async (req, res, next) => {
     // Verify the refresh token
     const decoded = jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET || "your_jwt_refresh_secret",
+      process.env.JWT_REFRESH_SECRET ||
+        process.env.JWT_SECRET ||
+        "your_jwt_refresh_secret",
     );
 
     if (decoded.type !== "refresh") {
