@@ -49,6 +49,7 @@ router.post(
 router.get('/proposal-documents', protect, authorize('admin'), async (req, res) => {
     try {
         const uploadDir = path.join(process.cwd(), 'public', 'proposal_documents');
+        await fs.mkdir(uploadDir, { recursive: true });
         const files = await fs.readdir(uploadDir);
         res.json({
             success: true,
@@ -58,7 +59,8 @@ router.get('/proposal-documents', protect, authorize('admin'), async (req, res) 
         console.error('Error reading files:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch files'
+            message: 'Failed to fetch files',
+            error: error.message
         });
     }
 });
