@@ -53,13 +53,16 @@ export const protect = async (req, res, next) => {
       }
       
       // Find the user and attach to request object
-      const user = await User.findById(userId).select('-password +adminPermissions +adminRoleId');
+      const user = await User.findById(userId).select('+adminPermissions +adminRoleId');
       if (!user) {
         console.error('User not found with ID:', userId);
         return res.status(401).json({
           success: false,
           message: 'User not found with this ID.'
         });
+      }
+      if (user.password) {
+        user.password = undefined;
       }
       
       // Attach user object to request with all necessary fields
