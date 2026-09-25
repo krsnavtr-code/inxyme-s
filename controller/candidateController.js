@@ -198,7 +198,7 @@ export const createCandidate = async (req, res) => {
   const city = "Noida, Uttar Pradesh 201301";
   const mapLink = "https://maps.app.goo.gl/PjBJ8U51Kn1as9Aq6";
   const supportEmail = "info@inxyme.com";
-  const supportPhone = "9891030303";
+  const supportPhone = "9990999561";
   const website = "https://inxyme.com";
   const yourName = "Inxyme";
 
