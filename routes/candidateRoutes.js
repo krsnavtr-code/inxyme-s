@@ -76,7 +76,7 @@ router.post("/", upload.single("profilePhoto"), createCandidate);
 //         venue: 'Grand Conference Center',
 //         city: 'Mumbai',
 //         qrCodeUrl: 'https://inxyme.com/verify/123456',
-//         logoUrl: 'https://inxyme.com/logo.png'
+//         logoUrl: 'https://www.inxyme.com/api/upload/file/Inxyme-png-logo-2232.png'
 //     };
 
 //     // Add _id to test candidate as it's required by the generateIdCard function
