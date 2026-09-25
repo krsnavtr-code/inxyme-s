@@ -33,7 +33,10 @@ transporter.verify(function (error, success) {
     console.log("SMTP Config:", {
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT,
-      user: process.env.SMTP_USER ? "Set" : "Not Set",
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+        ? "*".repeat(process.env.SMTP_PASS.length)
+        : "Not Set",
       from: process.env.EMAIL_FROM_ADDRESS,
     });
   }

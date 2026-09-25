@@ -2,6 +2,7 @@ import express from 'express';
 import { 
   createSprint, 
   getSprintsByCourse, 
+  getMySprints,
   getSprint, 
   updateSprint, 
   deleteSprint,
@@ -13,6 +14,10 @@ const router = express.Router();
 
 // Protect all routes after this middleware
 router.use(protect);
+
+// Student & Admin route: get sprints for current user's enrolled courses
+router.route('/my-sprints')
+  .get(getMySprints);
 
 // Admin-only routes
 router.route('/')

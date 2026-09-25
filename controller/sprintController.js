@@ -58,6 +58,43 @@ export const getAllSprints = catchAsync(async (req, res, next) => {
   });
 });
 
+// @desc    Get all sprints for the logged in student across enrolled courses
+// @route   GET /api/sprints/my-sprints
+// @access  Private
+export const getMySprints = catchAsync(async (req, res, next) => {
+  const userId = req.user.id || req.user._id;
+
+  // Find all enrollments for this user
+  const enrollments = await Enrollment.find({
+    $or: [
+      { user: userId, status: { $ne: 'cancelled' } },
+      { 'guestInfo.email': req.user.email, status: { $ne: 'cancelled' } }
+    ]
+  }).select('course');
+
+  const courseIds = enrollments.map((e) => e.course).filter(Boolean);
+
+  const sprints = await Sprint.find({
+    courseId: { $in: courseIds },
+    isActive: true
+  })
+    .sort('order startDate')
+    .select('-__v')
+    .populate('courseId', 'title slug thumbnail')
+    .populate({
+      path: 'sessions',
+      options: { sort: { order: 1 } }
+    });
+
+  res.status(200).json({
+    status: 'success',
+    results: sprints.length,
+    data: {
+      sprints
+    }
+  });
+});
+
 // @desc    Get all sprints for a course
 // @route   GET /api/sprints/course/:courseId
 // @access  Private
