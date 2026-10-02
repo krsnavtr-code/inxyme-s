@@ -1,4 +1,5 @@
 import Contact from "../model/Contact.js";
+import Visitor from "../model/Visitor.js";
 import { validationResult } from "express-validator";
 import mongoose from "mongoose";
 import {
@@ -29,7 +30,7 @@ export const submitContactForm = async (req, res) => {
       });
     }
 
-    const { name, email, phone, message, courseId, courseTitle, subject } =
+    const { name, email, phone, message, courseId, courseTitle, subject, visitorId } =
       req.body;
 
     // Check if this is a duplicate submission (same email and message within last 5 minutes)
@@ -79,6 +80,27 @@ export const submitContactForm = async (req, res) => {
 
     // Save to database
     const savedContact = await contact.save();
+
+    // Link visitor UUID with this newly submitted lead
+    if (visitorId) {
+      try {
+        await Visitor.findOneAndUpdate(
+          { visitorId },
+          {
+            $set: {
+              name: savedContact.name,
+              email: savedContact.email,
+              phone: savedContact.phone,
+              isKnownLead: true,
+              lastSeen: new Date(),
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (vErr) {
+        console.warn("Visitor link warning:", vErr.message);
+      }
+    }
 
     // Sync with CRM (blocking - wait for CRM response)
     try {

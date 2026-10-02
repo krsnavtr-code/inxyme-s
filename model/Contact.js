@@ -50,6 +50,10 @@ const contactSchema = new mongoose.Schema({
     type: String,
     index: true,
   },
+  visitorId: {
+    type: String,
+    index: true,
+  },
   isPartial: {
     type: Boolean,
     default: false,

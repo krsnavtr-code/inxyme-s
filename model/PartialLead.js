@@ -70,6 +70,11 @@ const partialLeadSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    // Persistent visitor UUID across sessions
+    visitorId: {
+      type: String,
+      index: true,
+    },
   },
   {
     timestamps: true, // createdAt = first blur, updatedAt = last blur

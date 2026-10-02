@@ -1,5 +1,6 @@
 import PartialLead from "../model/PartialLead.js";
 import Contact from "../model/Contact.js";
+import Visitor from "../model/Visitor.js";
 import catchAsync from "../utils/catchAsync.js";
 
 /**
@@ -15,6 +16,7 @@ import catchAsync from "../utils/catchAsync.js";
  * It simultaneously saves to BOTH:
  * 1. PartialLead collection (partialleads)
  * 2. Contact collection (contacts)
+ * And links visitorId to Visitor model (returning visitor tracking)
  */
 export const capturePartialLead = catchAsync(async (req, res) => {
   const {
@@ -26,6 +28,7 @@ export const capturePartialLead = catchAsync(async (req, res) => {
     courseId,
     courseTitle,
     sessionFingerprint,
+    visitorId,
   } = req.body;
 
   // Must have at least one useful contact detail
@@ -70,6 +73,7 @@ export const capturePartialLead = catchAsync(async (req, res) => {
     ...(pageUrl && { pageUrl: pageUrl.trim() }),
     ...(courseId && { courseId }),
     ...(courseTitle && { courseTitle: courseTitle.trim() }),
+    ...(visitorId && { visitorId: visitorId.trim() }),
     ipAddress: req.ip,
     userAgent: req.get("user-agent"),
   };
@@ -106,6 +110,7 @@ export const capturePartialLead = catchAsync(async (req, res) => {
       ...(phone && { phone: phone.trim() }),
       ...(courseId && { courseId }),
       ...(courseTitle && { courseTitle: courseTitle.trim() }),
+      ...(visitorId && { visitorId: visitorId.trim() }),
       source: source?.trim() || "website",
       pageUrl: pageUrl?.trim() || "",
       subject: (courseTitle
@@ -135,6 +140,27 @@ export const capturePartialLead = catchAsync(async (req, res) => {
     }
   } catch (contactErr) {
     console.error("Error syncing partial lead to Contact collection:", contactErr.message);
+  }
+
+  // If visitorId is provided, link this visitor's browsing history to their lead identity!
+  if (visitorId) {
+    try {
+      await Visitor.findOneAndUpdate(
+        { visitorId },
+        {
+          $set: {
+            ...(name && { name: name.trim() }),
+            ...(email && { email: email.trim().toLowerCase() }),
+            ...(phone && { phone: phone.trim() }),
+            isKnownLead: true,
+            lastSeen: new Date(),
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (vErr) {
+      console.warn("Visitor link warning:", vErr.message);
+    }
   }
 
   return res.status(200).json({

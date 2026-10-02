@@ -53,6 +53,7 @@ import mediaMentionRoutes from "./routes/mediaMentionRoutes.js";
 import awardRoutes from "./routes/awardRoutes.js";
 import leadRoute from "./route/lead.route.js";
 import partialLeadRoute from "./route/partialLead.route.js";
+import visitorRoute from "./route/visitor.route.js";
 
 import dns from "dns";
 import { createServer } from "http";
@@ -429,6 +430,7 @@ app.use("/api/media-mentions", mediaMentionRoutes);
 app.use("/api/awards", awardRoutes);
 app.use("/api/leads", leadRoute);
 app.use("/api/partial-leads", partialLeadRoute);
+app.use("/api/visitors", visitorRoute);
 
 // Auth routes
 app.use("/api/auth", authRoutes);
