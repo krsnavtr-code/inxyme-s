@@ -8,6 +8,8 @@ import {
 } from "../utils/email.js";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
+import { trackServerSideEvent } from "../utils/serverTracking.js";
+
 
 /**
  * @desc    Submit a contact form
@@ -163,6 +165,29 @@ export const submitContactForm = async (req, res) => {
       // Don't fail the request if email sending fails
       // Just log the error and continue
     }
+
+    // 07 - Server-Side Tracking (Bypassing Ad-Blockers) for Final Lead Submission
+    trackServerSideEvent({
+      eventType: "Lead",
+      pageUrl: savedContact.pageUrl || "",
+      pageTitle: savedContact.courseTitle || savedContact.subject || "Contact Form Lead",
+      visitorId: savedContact.visitorId || activeTrackingId,
+      fingerprint: savedContact.fingerprint || fingerprint || "",
+      ipAddress: req.ip || "",
+      userAgent: req.get("user-agent") || "",
+      userData: {
+        name: savedContact.name,
+        email: savedContact.email,
+        phone: savedContact.phone,
+        courseTitle: savedContact.courseTitle,
+      },
+      customData: {
+        source: savedContact.source || "website_contact_form",
+        courseId: savedContact.courseId,
+        subject: savedContact.subject,
+        isPartial: false,
+      },
+    });
 
     // Prepare success response
     const responseData = {

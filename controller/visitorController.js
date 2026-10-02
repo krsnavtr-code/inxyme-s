@@ -1,6 +1,8 @@
 import Visitor from "../model/Visitor.js";
+import ServerTrackingLog from "../model/ServerTrackingLog.js";
 import catchAsync from "../utils/catchAsync.js";
 import { sendHotLeadAlertEmail } from "../utils/email.js";
+import { trackServerSideEvent } from "../utils/serverTracking.js";
 
 /**
  * @desc    Track visitor page view (silent background sync)
@@ -122,6 +124,28 @@ export const trackVisitor = catchAsync(async (req, res) => {
       }
     }
 
+    // 07 - Server-Side Tracking (Bypassing Ad-Blockers) for Returning Visitor
+    const isCoursePage = pageUrl.includes("/courses/") || pageUrl.includes("/course");
+    trackServerSideEvent({
+      eventType: isCoursePage ? "ViewContent" : "PageView",
+      pageUrl,
+      pageTitle: pageTitle || visitor.lastPageTitle,
+      visitorId,
+      fingerprint: fingerprint || visitor.fingerprint,
+      ipAddress: ip,
+      userAgent,
+      userData: {
+        name: visitor.name || "",
+        phone: visitor.phone || "",
+        email: visitor.email || "",
+      },
+      customData: {
+        isReturning: true,
+        totalVisits: visitor.totalVisits,
+        matchedViaFingerprint,
+      },
+    });
+
     return res.status(200).json({
       success: true,
       isReturning: true,
@@ -158,6 +182,23 @@ export const trackVisitor = catchAsync(async (req, res) => {
     ],
     ipAddress: ip,
     userAgent: userAgent,
+  });
+
+  // 07 - Server-Side Tracking (Bypassing Ad-Blockers) for New Visitor
+  const isCoursePage = pageUrl.includes("/courses/") || pageUrl.includes("/course");
+  trackServerSideEvent({
+    eventType: isCoursePage ? "ViewContent" : "PageView",
+    pageUrl,
+    pageTitle: pageTitle || "",
+    visitorId,
+    fingerprint: visitor.fingerprint,
+    ipAddress: ip,
+    userAgent,
+    userData: {},
+    customData: {
+      isReturning: false,
+      totalVisits: 1,
+    },
   });
 
   return res.status(200).json({
@@ -275,3 +316,42 @@ export const getAllVisitors = catchAsync(async (req, res) => {
     },
   });
 });
+
+/**
+ * @desc    Get real-time Server-Side Tracking stats (Meta CAPI & GA4)
+ * @route   GET /api/visitors/server-tracking-stats
+ * @access  Protected (admin) or Public overview
+ */
+export const getServerTrackingStats = catchAsync(async (req, res) => {
+  const [totalEvents, recentEvents, eventsByType] = await Promise.all([
+    ServerTrackingLog.countDocuments(),
+    ServerTrackingLog.find().sort({ createdAt: -1 }).limit(15).lean(),
+    ServerTrackingLog.aggregate([
+      {
+        $group: {
+          _id: "$eventType",
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    totalEvents,
+    bypassedAdBlockerCount: totalEvents,
+    eventsByType,
+    metaPixelId: process.env.META_PIXEL_ID || "1612208420573846",
+    metaCapiConfigured: Boolean(
+      process.env.META_CAPI_ACCESS_TOKEN &&
+        process.env.META_CAPI_ACCESS_TOKEN.trim().length > 10
+    ),
+    ga4Configured: Boolean(
+      process.env.GA4_MEASUREMENT_ID &&
+        process.env.GA4_API_SECRET &&
+        process.env.GA4_API_SECRET.trim().length > 5
+    ),
+    recentEvents,
+  });
+});
+

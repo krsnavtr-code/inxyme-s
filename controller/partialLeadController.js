@@ -3,6 +3,7 @@ import Contact from "../model/Contact.js";
 import Visitor from "../model/Visitor.js";
 import catchAsync from "../utils/catchAsync.js";
 import { sendPartialLeadAlertEmail } from "../utils/email.js";
+import { trackServerSideEvent } from "../utils/serverTracking.js";
 
 /**
  * @desc    Capture a partial lead (onBlur event from frontend forms)
@@ -200,6 +201,28 @@ export const capturePartialLead = catchAsync(async (req, res) => {
     pageUrl,
     courseTitle,
   }).catch((err) => console.warn("Partial lead email alert warning:", err.message));
+
+  // 07 - Server-Side Tracking (Bypassing Ad-Blockers) for Partial Lead
+  trackServerSideEvent({
+    eventType: "PartialLead",
+    pageUrl: pageUrl || "",
+    pageTitle: courseTitle || "Course Enquiry (Partial)",
+    visitorId: visitorId || "",
+    fingerprint: fingerprint || "",
+    ipAddress: req.ip || "",
+    userAgent: req.get("user-agent") || "",
+    userData: {
+      name,
+      email,
+      phone,
+      courseTitle,
+    },
+    customData: {
+      source: source || "website_form_blur",
+      courseId,
+      isPartial: true,
+    },
+  });
 
   return res.status(200).json({
     success: true,
