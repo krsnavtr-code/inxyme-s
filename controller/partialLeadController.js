@@ -2,6 +2,7 @@ import PartialLead from "../model/PartialLead.js";
 import Contact from "../model/Contact.js";
 import Visitor from "../model/Visitor.js";
 import catchAsync from "../utils/catchAsync.js";
+import { sendPartialLeadAlertEmail } from "../utils/email.js";
 
 /**
  * @desc    Capture a partial lead (onBlur event from frontend forms)
@@ -162,6 +163,16 @@ export const capturePartialLead = catchAsync(async (req, res) => {
       console.warn("Visitor link warning:", vErr.message);
     }
   }
+
+  // Send instant alert email to counselors / admin
+  sendPartialLeadAlertEmail({
+    name,
+    email,
+    phone,
+    source,
+    pageUrl,
+    courseTitle,
+  }).catch((err) => console.warn("Partial lead email alert warning:", err.message));
 
   return res.status(200).json({
     success: true,

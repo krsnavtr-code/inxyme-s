@@ -69,6 +69,12 @@ const visitorSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Throttle alert emails so admin isn't spammed on every click
+    lastAlertSentAt: {
+      type: Date,
+      default: null,
+    },
+
     // First and last visit tracking
     firstSeen: {
       type: Date,

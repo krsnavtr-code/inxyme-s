@@ -307,39 +307,74 @@ export const sendBulkEmails = async (
 /**
  * Send hot lead alert email when tracked user revisits
  * @param {Object} contact - Contact user details
+/**
+ * Helper to format phone for WhatsApp link
+ */
+const formatWhatsAppNumber = (phone) => {
+  if (!phone) return "";
+  let digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) {
+    digits = `91${digits}`;
+  }
+  return digits;
+};
+
+/**
+ * Send hot lead alert email when tracked user revisits
+ * @param {Object} contact - Contact user details
  * @param {string} pageUrl - Current page URL the user is viewing
  * @returns {Promise} - Promise that resolves when email is sent
  */
 export const sendHotLeadAlertEmail = async (contact, pageUrl) => {
   try {
-    const subject = `🔥 Hot Lead Alert: ${contact.name} is back on your website!`;
+    const alertRecipient = process.env.LEAD_ALERT_EMAIL || "krishnaavtar955@gmail.com";
+    const waNumber = formatWhatsAppNumber(contact.phone);
+    const waLink = waNumber
+      ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${contact.name || "there"}, I noticed you were exploring our courses on Inxyme. How can I help you?`)}`
+      : "";
+
+    const subject = `🔥 Hot Lead Alert: ${contact.name || contact.phone} is back on your website!`;
     const html = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2 style="color: #d97706;">🔥 Hot Lead Alert</h2>
-        <p><strong>${contact.name}</strong> has returned to your website and is currently viewing:</p>
-        
-        <div style="background: #fef3c7; padding: 15px; border-left: 4px solid #f59e0b; margin: 15px 0;">
-          <p style="margin: 0; font-weight: bold;">${pageUrl}</p>
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #fef3c7; border-radius: 12px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #d97706, #b45309); padding: 20px; color: white;">
+          <h2 style="margin: 0; font-size: 20px;">🔥 Returning Lead Alert!</h2>
+          <p style="margin: 5px 0 0; opacity: 0.9; font-size: 13px;">A previous lead is currently active on your website right now.</p>
         </div>
-        
-        <h3>Contact Details:</h3>
-        <p><strong>Name:</strong> ${contact.name}</p>
-        <p><strong>Email:</strong> ${contact.email}</p>
-        ${contact.phone ? `<p><strong>Phone:</strong> ${contact.phone}</p>` : ""}
-        ${contact.courseTitle ? `<p><strong>Interested Course:</strong> ${contact.courseTitle}</p>` : ""}
-        
-        <h3>Visit History:</h3>
-        <p>Total visits: ${contact.visitHistory?.length || 1}</p>
-        <p>Last visit: ${new Date().toLocaleString()}</p>
-        
-        <p style="color: #d97706; font-weight: bold;">⚡ This is a hot lead - consider reaching out immediately!</p>
-        
-        <p>Best regards,<br>The ${process.env.APP_NAME || "Inxyme"} Team</p>
+
+        <div style="padding: 24px; background: #ffffff;">
+          <div style="background: #fffbeb; padding: 15px; border-left: 4px solid #f59e0b; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 12px; text-transform: uppercase; color: #92400e; font-weight: bold;">Currently Viewing Page:</p>
+            <p style="margin: 4px 0 0; font-size: 15px; font-weight: bold; color: #1e293b;">${pageUrl}</p>
+          </div>
+
+          <h3 style="font-size: 14px; text-transform: uppercase; color: #64748b; margin-bottom: 10px;">Lead Details:</h3>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+            <tr><td style="padding: 6px 0; color: #64748b; width: 120px;">Name:</td><td style="font-weight: bold; color: #1e293b;">${contact.name || "Not provided"}</td></tr>
+            <tr><td style="padding: 6px 0; color: #64748b;">Phone:</td><td style="font-weight: bold; color: #1e293b;">${contact.phone || "Not provided"}</td></tr>
+            <tr><td style="padding: 6px 0; color: #64748b;">Email:</td><td style="font-weight: bold; color: #1e293b;">${contact.email || "Not provided"}</td></tr>
+            ${contact.courseTitle ? `<tr><td style="padding: 6px 0; color: #64748b;">Course:</td><td style="font-weight: bold; color: #1e293b;">${contact.courseTitle}</td></tr>` : ""}
+            <tr><td style="padding: 6px 0; color: #64748b;">Total Visits:</td><td style="font-weight: bold; color: #1e293b;">${contact.totalVisits || contact.visitHistory?.length || 1}</td></tr>
+            <tr><td style="padding: 6px 0; color: #64748b;">Time:</td><td style="color: #1e293b;">${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</td></tr>
+          </table>
+
+          <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; gap: 10px;">
+            ${contact.phone ? `
+              <a href="tel:${contact.phone}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; font-size: 13px; margin-right: 10px;">
+                📞 Call Immediately
+              </a>
+            ` : ""}
+            ${waLink ? `
+              <a href="${waLink}" style="display: inline-block; background: #16a34a; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; font-size: 13px;">
+                💬 Message on WhatsApp
+              </a>
+            ` : ""}
+          </div>
+        </div>
       </div>
     `;
 
     await sendEmail({
-      to: "krishnaavtar955@gmail.com",
+      to: alertRecipient,
       subject,
       html,
     });
@@ -351,9 +386,73 @@ export const sendHotLeadAlertEmail = async (contact, pageUrl) => {
   }
 };
 
+/**
+ * Send alert email when a partial lead is captured on blur
+ * @param {Object} leadData - Lead details captured on blur
+ */
+export const sendPartialLeadAlertEmail = async (leadData) => {
+  try {
+    const alertRecipient = process.env.LEAD_ALERT_EMAIL || "krishnaavtar955@gmail.com";
+    const waNumber = formatWhatsAppNumber(leadData.phone);
+    const waLink = waNumber
+      ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${leadData.name || "there"}, thank you for visiting Inxyme. Were you looking for information regarding ${leadData.courseTitle || "our courses"}?`)}`
+      : "";
+
+    const identifier = leadData.name || leadData.phone || leadData.email || "Visitor";
+    const subject = `⚡ Partial Lead Captured: ${identifier} (${leadData.courseTitle || leadData.source || "Website"})`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #fed7aa; border-radius: 12px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #ea580c, #c2410c); padding: 20px; color: white;">
+          <h2 style="margin: 0; font-size: 20px;">⚡ New Partial Lead (onBlur Captured)</h2>
+          <p style="margin: 5px 0 0; opacity: 0.9; font-size: 13px;">User began filling a form on your site and clicked away.</p>
+        </div>
+
+        <div style="padding: 24px; background: #ffffff;">
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+            <tr><td style="padding: 6px 0; color: #64748b; width: 120px;">Name:</td><td style="font-weight: bold; color: #1e293b;">${leadData.name || "Not entered yet"}</td></tr>
+            <tr><td style="padding: 6px 0; color: #64748b;">Phone:</td><td style="font-weight: bold; color: #1e293b;">${leadData.phone || "Not entered yet"}</td></tr>
+            <tr><td style="padding: 6px 0; color: #64748b;">Email:</td><td style="font-weight: bold; color: #1e293b;">${leadData.email || "Not entered yet"}</td></tr>
+            <tr><td style="padding: 6px 0; color: #64748b;">Form Source:</td><td style="font-weight: bold; color: #1e293b;">${leadData.source || "Website Form"}</td></tr>
+            <tr><td style="padding: 6px 0; color: #64748b;">Page URL:</td><td style="color: #2563eb;">${leadData.pageUrl || "/"}</td></tr>
+            ${leadData.courseTitle ? `<tr><td style="padding: 6px 0; color: #64748b;">Course:</td><td style="font-weight: bold; color: #1e293b;">${leadData.courseTitle}</td></tr>` : ""}
+            <tr><td style="padding: 6px 0; color: #64748b;">Time:</td><td style="color: #1e293b;">${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</td></tr>
+          </table>
+
+          <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #f1f5f9;">
+            ${leadData.phone ? `
+              <a href="tel:${leadData.phone}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; font-size: 13px; margin-right: 10px;">
+                📞 Call Now
+              </a>
+            ` : ""}
+            ${waLink ? `
+              <a href="${waLink}" style="display: inline-block; background: #16a34a; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; font-size: 13px;">
+                💬 WhatsApp Chat
+              </a>
+            ` : ""}
+          </div>
+        </div>
+      </div>
+    `;
+
+    await sendEmail({
+      to: alertRecipient,
+      subject,
+      html,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending partial lead alert email:", error);
+    throw error;
+  }
+};
+
 export default {
   sendEmail,
   sendCoursePdfEmail,
   sendContactNotifications,
   sendBulkEmails,
+  sendHotLeadAlertEmail,
+  sendPartialLeadAlertEmail,
 };

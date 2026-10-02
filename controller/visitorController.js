@@ -1,5 +1,6 @@
 import Visitor from "../model/Visitor.js";
 import catchAsync from "../utils/catchAsync.js";
+import { sendHotLeadAlertEmail } from "../utils/email.js";
 
 /**
  * @desc    Track visitor page view (silent background sync)
@@ -69,6 +70,15 @@ export const trackVisitor = catchAsync(async (req, res) => {
           totalVisits: visitor.totalVisits,
           timestamp: now,
         });
+      }
+
+      // Send instant Email Alert (throttled to 1 email per 15 mins per visitor to prevent inbox spam)
+      const fifteenMinsAgo = new Date(now.getTime() - 15 * 60 * 1000);
+      if (!visitor.lastAlertSentAt || visitor.lastAlertSentAt < fifteenMinsAgo) {
+        visitor.lastAlertSentAt = now;
+        sendHotLeadAlertEmail(visitor, pageUrl).catch((err) =>
+          console.warn("Returning lead email alert warning:", err.message)
+        );
       }
     }
 
