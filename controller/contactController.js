@@ -51,8 +51,8 @@ export const submitContactForm = async (req, res) => {
       });
     }
 
-    // Generate unique tracking ID
-    const trackingId = uuidv4();
+    // Generate unique tracking ID or use visitorId
+    const activeTrackingId = visitorId || uuidv4();
 
     // Create new contact
     const contactData = {
@@ -65,7 +65,10 @@ export const submitContactForm = async (req, res) => {
       submittedAt: new Date(),
       ipAddress: req.ip,
       userAgent: req.get("user-agent"),
-      trackingId: trackingId,
+      trackingId: activeTrackingId,
+      visitorId: visitorId || activeTrackingId,
+      pageUrl: req.body.pageUrl || "",
+      source: req.body.source || "website",
     };
 
     // Add course-related fields if they exist
@@ -84,7 +87,7 @@ export const submitContactForm = async (req, res) => {
     // Link visitor UUID with this newly submitted lead
     if (visitorId) {
       try {
-        await Visitor.findOneAndUpdate(
+        const vDoc = await Visitor.findOneAndUpdate(
           { visitorId },
           {
             $set: {
@@ -97,6 +100,13 @@ export const submitContactForm = async (req, res) => {
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
+        if (vDoc) {
+          savedContact.totalVisits = vDoc.totalVisits || 1;
+          savedContact.pageViews = vDoc.pageViews || 1;
+          savedContact.lastPageVisited = vDoc.lastPageVisited || savedContact.pageUrl;
+          savedContact.visitHistory = vDoc.history || [];
+          await savedContact.save();
+        }
       } catch (vErr) {
         console.warn("Visitor link warning:", vErr.message);
       }
@@ -215,17 +225,110 @@ export const getAllContacts = async (req, res) => {
     const limitNum = Math.max(1, parseInt(limit, 10) || 10);
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
 
-    const contacts = await Contact.find(query)
+    const rawContacts = await Contact.find(query)
       .sort({ submittedAt: -1 })
       .limit(limitNum)
-      .skip((pageNum - 1) * limitNum);
+      .skip((pageNum - 1) * limitNum)
+      .lean();
 
     const totalItems = await Contact.countDocuments(query);
     const totalPages = Math.ceil(totalItems / limitNum);
 
+    // Cross-reference with Visitor collection to enrich each contact with tracking info
+    const visitorIds = rawContacts.map((c) => c.visitorId).filter(Boolean);
+    const emails = rawContacts.map((c) => c.email).filter(Boolean);
+    const phones = rawContacts.map((c) => c.phone).filter(Boolean);
+
+    let visitors = [];
+    if (visitorIds.length > 0 || emails.length > 0 || phones.length > 0) {
+      try {
+        visitors = await Visitor.find({
+          $or: [
+            ...(visitorIds.length > 0 ? [{ visitorId: { $in: visitorIds } }] : []),
+            ...(emails.length > 0 ? [{ email: { $in: emails } }] : []),
+            ...(phones.length > 0 ? [{ phone: { $in: phones } }] : []),
+          ],
+        }).lean();
+      } catch (err) {
+        console.warn("Failed to fetch matching visitors for contacts:", err.message);
+      }
+    }
+
+    const visitorByIdMap = new Map();
+    const visitorByEmailMap = new Map();
+    const visitorByPhoneMap = new Map();
+
+    visitors.forEach((v) => {
+      if (v.visitorId) visitorByIdMap.set(v.visitorId, v);
+      if (v.email) visitorByEmailMap.set(v.email.toLowerCase(), v);
+      if (v.phone) visitorByPhoneMap.set(v.phone.replace(/\D/g, ""), v);
+    });
+
+    const enrichedContacts = rawContacts.map((contact) => {
+      const cleanPhone = contact.phone ? contact.phone.replace(/\D/g, "") : "";
+      const cleanEmail = contact.email ? contact.email.toLowerCase() : "";
+
+      const v =
+        (contact.visitorId && visitorByIdMap.get(contact.visitorId)) ||
+        (cleanEmail && visitorByEmailMap.get(cleanEmail)) ||
+        (cleanPhone && visitorByPhoneMap.get(cleanPhone)) ||
+        null;
+
+      const trackingId =
+        contact.trackingId ||
+        contact.visitorId ||
+        v?.visitorId ||
+        `TRK-${contact._id.toString().slice(-6).toUpperCase()}`;
+
+      const totalVisits =
+        v?.totalVisits ||
+        contact.totalVisits ||
+        (v?.history?.length > 1 ? v.history.length : 1);
+
+      const pageViews =
+        v?.pageViews ||
+        contact.pageViews ||
+        (v?.history?.length ? v.history.length : 1);
+
+      const lastPageVisited =
+        v?.lastPageVisited ||
+        contact.lastPageVisited ||
+        (v?.history?.length ? v.history[v.history.length - 1]?.pageUrl : contact.pageUrl) ||
+        contact.pageUrl ||
+        "";
+
+      const visitHistory =
+        v?.history && v.history.length > 0
+          ? v.history
+          : contact.visitHistory && contact.visitHistory.length > 0
+          ? contact.visitHistory
+          : contact.pageUrl
+          ? [
+              {
+                pageUrl: contact.pageUrl,
+                pageTitle: contact.courseTitle || "",
+                visitedAt: contact.submittedAt,
+              },
+            ]
+          : [];
+
+      return {
+        ...contact,
+        trackingId,
+        visitorId: contact.visitorId || v?.visitorId,
+        totalVisits,
+        pageViews,
+        lastPageVisited,
+        visitHistory,
+        firstSeen: v?.firstSeen || contact.submittedAt,
+        lastSeen: v?.lastSeen || contact.submittedAt,
+        isReturning: totalVisits > 1,
+      };
+    });
+
     res.json({
       success: true,
-      data: contacts,
+      data: enrichedContacts,
       meta: {
         total: totalItems,
         totalPages,

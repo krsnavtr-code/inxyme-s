@@ -54,6 +54,30 @@ const contactSchema = new mongoose.Schema({
     type: String,
     index: true,
   },
+  trackingId: {
+    type: String,
+    index: true,
+  },
+  totalVisits: {
+    type: Number,
+    default: 1,
+  },
+  pageViews: {
+    type: Number,
+    default: 1,
+  },
+  lastPageVisited: {
+    type: String,
+    trim: true,
+  },
+  visitHistory: [
+    {
+      pageUrl: String,
+      pageTitle: String,
+      visitedAt: { type: Date, default: Date.now },
+      _id: false,
+    },
+  ],
   isPartial: {
     type: Boolean,
     default: false,

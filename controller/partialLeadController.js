@@ -112,8 +112,19 @@ export const capturePartialLead = catchAsync(async (req, res) => {
       ...(courseId && { courseId }),
       ...(courseTitle && { courseTitle: courseTitle.trim() }),
       ...(visitorId && { visitorId: visitorId.trim() }),
+      trackingId: visitorId?.trim() || sessionFingerprint || `TRK-${Date.now()}`,
       source: source?.trim() || "website",
       pageUrl: pageUrl?.trim() || "",
+      lastPageVisited: pageUrl?.trim() || "",
+      visitHistory: pageUrl?.trim()
+        ? [
+            {
+              pageUrl: pageUrl.trim(),
+              pageTitle: courseTitle?.trim() || "",
+              visitedAt: new Date(),
+            },
+          ]
+        : [],
       subject: (courseTitle
         ? `Enquiry: ${courseTitle.trim()}`
         : `Partial Lead (${source?.trim() || "Website"})`
