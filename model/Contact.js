@@ -58,6 +58,16 @@ const contactSchema = new mongoose.Schema({
     type: String,
     index: true,
   },
+  fingerprint: {
+    type: String,
+    index: true,
+  },
+  device: {
+    os: { type: String, default: "" },
+    browser: { type: String, default: "" },
+    deviceType: { type: String, default: "" },
+    screenResolution: { type: String, default: "" },
+  },
   totalVisits: {
     type: Number,
     default: 1,

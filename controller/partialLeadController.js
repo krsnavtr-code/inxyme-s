@@ -30,6 +30,8 @@ export const capturePartialLead = catchAsync(async (req, res) => {
     courseTitle,
     sessionFingerprint,
     visitorId,
+    fingerprint,
+    device,
   } = req.body;
 
   // Must have at least one useful contact detail
@@ -75,6 +77,8 @@ export const capturePartialLead = catchAsync(async (req, res) => {
     ...(courseId && { courseId }),
     ...(courseTitle && { courseTitle: courseTitle.trim() }),
     ...(visitorId && { visitorId: visitorId.trim() }),
+    ...(fingerprint && { fingerprint: fingerprint.trim() }),
+    ...(device && { device }),
     ipAddress: req.ip,
     userAgent: req.get("user-agent"),
   };
@@ -113,6 +117,8 @@ export const capturePartialLead = catchAsync(async (req, res) => {
       ...(courseTitle && { courseTitle: courseTitle.trim() }),
       ...(visitorId && { visitorId: visitorId.trim() }),
       trackingId: visitorId?.trim() || sessionFingerprint || `TRK-${Date.now()}`,
+      fingerprint: fingerprint?.trim() || "",
+      device: device || {},
       source: source?.trim() || "website",
       pageUrl: pageUrl?.trim() || "",
       lastPageVisited: pageUrl?.trim() || "",
@@ -154,19 +160,29 @@ export const capturePartialLead = catchAsync(async (req, res) => {
     console.error("Error syncing partial lead to Contact collection:", contactErr.message);
   }
 
-  // If visitorId is provided, link this visitor's browsing history to their lead identity!
-  if (visitorId) {
+  // If visitorId or hardware fingerprint is provided, link this visitor's browsing history to their lead identity!
+  if (visitorId || fingerprint) {
     try {
+      const vQuery = {
+        $or: [
+          ...(visitorId ? [{ visitorId }, { visitorIds: visitorId }] : []),
+          ...(fingerprint ? [{ fingerprint: fingerprint.trim() }] : []),
+        ],
+      };
+
       await Visitor.findOneAndUpdate(
-        { visitorId },
+        vQuery,
         {
           $set: {
             ...(name && { name: name.trim() }),
             ...(email && { email: email.trim().toLowerCase() }),
             ...(phone && { phone: phone.trim() }),
+            ...(fingerprint && { fingerprint: fingerprint.trim() }),
+            ...(device && { device }),
             isKnownLead: true,
             lastSeen: new Date(),
           },
+          ...(visitorId ? { $addToSet: { visitorIds: visitorId } } : {}),
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );

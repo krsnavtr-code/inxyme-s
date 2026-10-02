@@ -30,8 +30,18 @@ export const submitContactForm = async (req, res) => {
       });
     }
 
-    const { name, email, phone, message, courseId, courseTitle, subject, visitorId } =
-      req.body;
+    const {
+      name,
+      email,
+      phone,
+      message,
+      courseId,
+      courseTitle,
+      subject,
+      visitorId,
+      fingerprint,
+      device,
+    } = req.body;
 
     // Check if this is a duplicate submission (same email and message within last 5 minutes)
     const duplicateQuery = {
@@ -67,6 +77,8 @@ export const submitContactForm = async (req, res) => {
       userAgent: req.get("user-agent"),
       trackingId: activeTrackingId,
       visitorId: visitorId || activeTrackingId,
+      fingerprint: fingerprint?.trim() || "",
+      device: device || {},
       pageUrl: req.body.pageUrl || "",
       source: req.body.source || "website",
     };
@@ -84,11 +96,18 @@ export const submitContactForm = async (req, res) => {
     // Save to database
     const savedContact = await contact.save();
 
-    // Link visitor UUID with this newly submitted lead
-    if (visitorId) {
+    // Link visitor UUID / fingerprint with this newly submitted lead
+    if (visitorId || fingerprint) {
       try {
+        const query = {
+          $or: [
+            ...(visitorId ? [{ visitorId }, { visitorIds: visitorId }] : []),
+            ...(fingerprint ? [{ fingerprint: fingerprint.trim() }] : []),
+          ],
+        };
+
         const vDoc = await Visitor.findOneAndUpdate(
-          { visitorId },
+          query,
           {
             $set: {
               name: savedContact.name,
@@ -96,7 +115,10 @@ export const submitContactForm = async (req, res) => {
               phone: savedContact.phone,
               isKnownLead: true,
               lastSeen: new Date(),
+              ...(fingerprint ? { fingerprint: fingerprint.trim() } : {}),
+              ...(device ? { device } : {}),
             },
+            ...(visitorId ? { $addToSet: { visitorIds: visitorId } } : {}),
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -105,6 +127,9 @@ export const submitContactForm = async (req, res) => {
           savedContact.pageViews = vDoc.pageViews || 1;
           savedContact.lastPageVisited = vDoc.lastPageVisited || savedContact.pageUrl;
           savedContact.visitHistory = vDoc.history || [];
+          if (!savedContact.fingerprint && vDoc.fingerprint) {
+            savedContact.fingerprint = vDoc.fingerprint;
+          }
           await savedContact.save();
         }
       } catch (vErr) {
@@ -236,15 +261,27 @@ export const getAllContacts = async (req, res) => {
 
     // Cross-reference with Visitor collection to enrich each contact with tracking info
     const visitorIds = rawContacts.map((c) => c.visitorId).filter(Boolean);
+    const fingerprints = rawContacts.map((c) => c.fingerprint).filter(Boolean);
     const emails = rawContacts.map((c) => c.email).filter(Boolean);
     const phones = rawContacts.map((c) => c.phone).filter(Boolean);
 
     let visitors = [];
-    if (visitorIds.length > 0 || emails.length > 0 || phones.length > 0) {
+    if (
+      visitorIds.length > 0 ||
+      fingerprints.length > 0 ||
+      emails.length > 0 ||
+      phones.length > 0
+    ) {
       try {
         visitors = await Visitor.find({
           $or: [
-            ...(visitorIds.length > 0 ? [{ visitorId: { $in: visitorIds } }] : []),
+            ...(visitorIds.length > 0
+              ? [
+                  { visitorId: { $in: visitorIds } },
+                  { visitorIds: { $in: visitorIds } },
+                ]
+              : []),
+            ...(fingerprints.length > 0 ? [{ fingerprint: { $in: fingerprints } }] : []),
             ...(emails.length > 0 ? [{ email: { $in: emails } }] : []),
             ...(phones.length > 0 ? [{ phone: { $in: phones } }] : []),
           ],
@@ -255,11 +292,16 @@ export const getAllContacts = async (req, res) => {
     }
 
     const visitorByIdMap = new Map();
+    const visitorByFpMap = new Map();
     const visitorByEmailMap = new Map();
     const visitorByPhoneMap = new Map();
 
     visitors.forEach((v) => {
       if (v.visitorId) visitorByIdMap.set(v.visitorId, v);
+      if (Array.isArray(v.visitorIds)) {
+        v.visitorIds.forEach((vid) => visitorByIdMap.set(vid, v));
+      }
+      if (v.fingerprint) visitorByFpMap.set(v.fingerprint, v);
       if (v.email) visitorByEmailMap.set(v.email.toLowerCase(), v);
       if (v.phone) visitorByPhoneMap.set(v.phone.replace(/\D/g, ""), v);
     });
@@ -270,6 +312,7 @@ export const getAllContacts = async (req, res) => {
 
       const v =
         (contact.visitorId && visitorByIdMap.get(contact.visitorId)) ||
+        (contact.fingerprint && visitorByFpMap.get(contact.fingerprint)) ||
         (cleanEmail && visitorByEmailMap.get(cleanEmail)) ||
         (cleanPhone && visitorByPhoneMap.get(cleanPhone)) ||
         null;
@@ -320,6 +363,9 @@ export const getAllContacts = async (req, res) => {
         pageViews,
         lastPageVisited,
         visitHistory,
+        fingerprint: contact.fingerprint || v?.fingerprint || "",
+        device: contact.device || v?.device || null,
+        isFingerprintMatched: v?.isFingerprintMatched || false,
         firstSeen: v?.firstSeen || contact.submittedAt,
         lastSeen: v?.lastSeen || contact.submittedAt,
         isReturning: totalVisits > 1,

@@ -75,6 +75,18 @@ const partialLeadSchema = new mongoose.Schema(
       type: String,
       index: true,
     },
+    // Hardware browser fingerprint
+    fingerprint: {
+      type: String,
+      index: true,
+    },
+    // Device characteristics
+    device: {
+      os: { type: String, default: "" },
+      browser: { type: String, default: "" },
+      deviceType: { type: String, default: "" },
+      screenResolution: { type: String, default: "" },
+    },
   },
   {
     timestamps: true, // createdAt = first blur, updatedAt = last blur

@@ -44,6 +44,38 @@ const visitorSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Browser / Device Hardware Fingerprint (FingerprintJS - survives cookie clearing & incognito)
+    fingerprint: {
+      type: String,
+      index: true,
+      trim: true,
+      default: "",
+    },
+
+    // All visitor UUIDs associated with this physical hardware fingerprint
+    visitorIds: [
+      {
+        type: String,
+        index: true,
+      },
+    ],
+
+    // Whether this visitor was identified via hardware fingerprint after cookie clear / incognito
+    isFingerprintMatched: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Device and browser metadata
+    device: {
+      os: { type: String, default: "" },
+      browser: { type: String, default: "" },
+      deviceType: { type: String, default: "" },
+      screenResolution: { type: String, default: "" },
+      language: { type: String, default: "" },
+      timezone: { type: String, default: "" },
+    },
+
     // Identity linked once user submits or onBlur enters contact info
     name: {
       type: String,
@@ -128,6 +160,8 @@ visitorSchema.index({ isKnownLead: 1, lastSeen: -1 });
 visitorSchema.index({ totalVisits: -1, lastSeen: -1 });
 visitorSchema.index({ email: 1 });
 visitorSchema.index({ phone: 1 });
+visitorSchema.index({ fingerprint: 1 });
+visitorSchema.index({ visitorIds: 1 });
 
 const Visitor = mongoose.model("Visitor", visitorSchema);
 

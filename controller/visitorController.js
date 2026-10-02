@@ -8,7 +8,7 @@ import { sendHotLeadAlertEmail } from "../utils/email.js";
  * @access  Public
  */
 export const trackVisitor = catchAsync(async (req, res) => {
-  const { visitorId, pageUrl, pageTitle, referrer } = req.body;
+  const { visitorId, fingerprint, device, pageUrl, pageTitle, referrer } = req.body;
 
   if (!visitorId || !pageUrl) {
     return res.status(400).json({
@@ -21,12 +21,29 @@ export const trackVisitor = catchAsync(async (req, res) => {
   const ip = req.ip || req.headers["x-forwarded-for"] || "";
   const userAgent = req.get("user-agent") || "";
 
-  let visitor = await Visitor.findOne({ visitorId });
+  // 1. Try finding visitor by direct visitorId or associated visitorIds
+  let visitor = await Visitor.findOne({
+    $or: [{ visitorId }, { visitorIds: visitorId }],
+  });
+
+  let matchedViaFingerprint = false;
+
+  // 2. If NOT found by visitorId, check Browser Fingerprint (Survives Incognito & Cookie Clearing!)
+  if (!visitor && fingerprint && fingerprint.trim().length > 0) {
+    visitor = await Visitor.findOne({ fingerprint: fingerprint.trim() });
+    if (visitor) {
+      matchedViaFingerprint = true;
+      visitor.isFingerprintMatched = true;
+      console.log(
+        `🕵️ [Fingerprint Match] Incognito/Cache-Cleared visitor matched to profile: ${visitor.name || visitor.phone || visitor.visitorId} (Fingerprint: ${fingerprint})`
+      );
+    }
+  }
 
   if (visitor) {
-    // Determine if this is a new session visit (more than 30 minutes since last activity)
+    // Determine if this is a new session visit (more than 30 minutes since last activity or matched via new incognito session)
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
-    const isNewSession = !visitor.lastSeen || visitor.lastSeen < thirtyMinutesAgo;
+    const isNewSession = matchedViaFingerprint || !visitor.lastSeen || visitor.lastSeen < thirtyMinutesAgo;
 
     if (isNewSession) {
       visitor.totalVisits = (visitor.totalVisits || 1) + 1;
@@ -38,6 +55,27 @@ export const trackVisitor = catchAsync(async (req, res) => {
     visitor.lastPageTitle = pageTitle || visitor.lastPageTitle || "";
     visitor.ipAddress = ip;
     visitor.userAgent = userAgent;
+
+    // Attach / update fingerprint
+    if (fingerprint && (!visitor.fingerprint || visitor.fingerprint.startsWith("fb_"))) {
+      visitor.fingerprint = fingerprint.trim();
+    }
+
+    // Attach / update device info
+    if (device && typeof device === "object") {
+      visitor.device = {
+        ...visitor.device?.toObject?.(),
+        ...device,
+      };
+    }
+
+    // Associate new visitor UUID with this hardware profile
+    if (!visitor.visitorIds) {
+      visitor.visitorIds = [];
+    }
+    if (!visitor.visitorIds.includes(visitorId)) {
+      visitor.visitorIds.push(visitorId);
+    }
 
     // Append to page visit history (keep last 100 visits)
     visitor.history.push({
@@ -57,17 +95,19 @@ export const trackVisitor = catchAsync(async (req, res) => {
 
     // If this visitor is a known lead who submitted/blurred before, alert counselors/admin
     if (visitor.isKnownLead) {
+      const modeLabel = matchedViaFingerprint ? "[Incognito / Cookie Cleared]" : "[Returning Lead]";
       console.log(
-        `🔥 [Returning Lead] ${visitor.name || "Known Lead"} (${visitor.phone || visitor.email}) returned to: ${pageUrl}`
+        `🔥 ${modeLabel} ${visitor.name || "Known Lead"} (${visitor.phone || visitor.email}) returned to: ${pageUrl}`
       );
 
       if (req.io) {
         req.io.emit("hot-lead-alert", {
-          message: `${visitor.name || "A returning student"} is currently viewing ${pageUrl}`,
+          message: `${visitor.name || "A returning student"} ${matchedViaFingerprint ? "(Incognito / Cache Cleared)" : ""} is currently viewing ${pageUrl}`,
           phone: visitor.phone,
           email: visitor.email,
           pageUrl: pageUrl,
           totalVisits: visitor.totalVisits,
+          isFingerprintMatched: matchedViaFingerprint,
           timestamp: now,
         });
       }
@@ -86,15 +126,20 @@ export const trackVisitor = catchAsync(async (req, res) => {
       success: true,
       isReturning: true,
       isKnownLead: visitor.isKnownLead,
+      isFingerprintMatched: matchedViaFingerprint,
       name: visitor.name,
       totalVisits: visitor.totalVisits,
       pageViews: visitor.pageViews,
+      fingerprint: visitor.fingerprint,
     });
   }
 
   // New first-time visitor
   visitor = await Visitor.create({
     visitorId,
+    fingerprint: fingerprint?.trim() || "",
+    visitorIds: [visitorId],
+    device: device || {},
     firstSeen: now,
     lastSeen: now,
     totalVisits: 1,
@@ -121,35 +166,54 @@ export const trackVisitor = catchAsync(async (req, res) => {
     isKnownLead: false,
     totalVisits: 1,
     pageViews: 1,
+    fingerprint: visitor.fingerprint,
   });
 });
 
 /**
- * @desc    Link visitor UUID with lead contact details (name, email, phone)
+ * @desc    Link visitor UUID & browser fingerprint with lead contact details (name, email, phone)
  * @route   POST /api/visitors/identify
  * @access  Public
  */
 export const identifyVisitor = catchAsync(async (req, res) => {
-  const { visitorId, name, email, phone } = req.body;
+  const { visitorId, fingerprint, device, name, email, phone } = req.body;
 
-  if (!visitorId) {
+  if (!visitorId && !fingerprint) {
     return res.status(400).json({
       success: false,
-      message: "visitorId is required",
+      message: "visitorId or fingerprint is required",
     });
   }
+
+  const query = {
+    $or: [
+      ...(visitorId ? [{ visitorId }, { visitorIds: visitorId }] : []),
+      ...(fingerprint ? [{ fingerprint: fingerprint.trim() }] : []),
+    ],
+  };
 
   const updateData = {
     ...(name && { name: name.trim() }),
     ...(email && { email: email.trim().toLowerCase() }),
     ...(phone && { phone: phone.trim() }),
+    ...(fingerprint && { fingerprint: fingerprint.trim() }),
+    ...(device && { device }),
     isKnownLead: true,
     lastSeen: new Date(),
   };
 
   const visitor = await Visitor.findOneAndUpdate(
-    { visitorId },
-    { $set: updateData },
+    query,
+    {
+      $set: updateData,
+      ...(visitorId ? { $addToSet: { visitorIds: visitorId } } : {}),
+      $setOnInsert: {
+        visitorId: visitorId || `fp_${Date.now()}`,
+        firstSeen: new Date(),
+        totalVisits: 1,
+        pageViews: 1,
+      },
+    },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
@@ -158,6 +222,7 @@ export const identifyVisitor = catchAsync(async (req, res) => {
     message: "Visitor identified and linked successfully",
     data: {
       visitorId: visitor.visitorId,
+      fingerprint: visitor.fingerprint,
       name: visitor.name,
       email: visitor.email,
       phone: visitor.phone,
@@ -183,7 +248,13 @@ export const getAllVisitors = catchAsync(async (req, res) => {
   }
   if (search) {
     const re = new RegExp(search, "i");
-    query.$or = [{ name: re }, { email: re }, { phone: re }, { visitorId: re }];
+    query.$or = [
+      { name: re },
+      { email: re },
+      { phone: re },
+      { visitorId: re },
+      { fingerprint: re },
+    ];
   }
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
