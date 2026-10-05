@@ -228,15 +228,38 @@ export const createAdminUser = catchAsync(async (req, res, next) => {
 
 // Update admin user role
 export const updateAdminUserRole = catchAsync(async (req, res, next) => {
-  const { adminRoleId, fullname, email } = req.body;
+  const { adminRoleId, fullname, email, role: newRole } = req.body;
 
   const user = await User.findById(req.params.id);
   if (!user) {
     return next(new AppError("No user found with that ID", 404));
   }
 
-  if (user.role !== "admin" && user.role !== "employee" && !user.adminRoleId) {
-    return next(new AppError("This user is not an admin", 400));
+  // If adminRoleId is not provided or empty string/null, treat as revoking admin role
+  if (!adminRoleId) {
+    user.adminRoleId = undefined;
+    user.adminPermissions = new Map();
+    if (newRole && ["admin", "teacher", "student", "employee"].includes(newRole)) {
+      user.role = newRole;
+    } else if (user.role === "admin") {
+      user.role = "student";
+    }
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json({
+      status: "success",
+      message: "Admin role revoked successfully",
+      data: {
+        user: {
+          _id: user._id,
+          fullname: user.fullname,
+          email: user.email,
+          role: user.role,
+          adminRoleId: null,
+          adminPermissions: {},
+        },
+      },
+    });
   }
 
   // Get the new role and its permissions
@@ -270,6 +293,9 @@ export const updateAdminUserRole = catchAsync(async (req, res, next) => {
   const updateData = { adminRoleId, adminPermissions };
   if (fullname) updateData.fullname = fullname;
   if (email) updateData.email = email;
+  if (newRole && ["admin", "teacher", "student", "employee"].includes(newRole)) {
+    updateData.role = newRole;
+  }
 
   // Update user role, permissions, and optionally fullname/email
   const updatedUserDoc = await User.findByIdAndUpdate(req.params.id, updateData, {
@@ -295,6 +321,175 @@ export const updateAdminUserRole = catchAsync(async (req, res, next) => {
     },
   });
 });
+
+// Revoke admin user role
+export const revokeAdminUserRole = catchAsync(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    return next(new AppError("No user found with that ID", 404));
+  }
+
+  user.adminRoleId = undefined;
+  user.adminPermissions = new Map();
+  if (user.role === "admin") {
+    user.role = "student";
+  }
+  await user.save({ validateBeforeSave: false });
+
+  res.status(200).json({
+    status: "success",
+    message: "Admin access revoked successfully",
+    data: {
+      user: {
+        _id: user._id,
+        fullname: user.fullname,
+        email: user.email,
+        role: user.role,
+        adminRoleId: null,
+        adminPermissions: {},
+      },
+    },
+  });
+});
+
+// Assign admin role to an existing user (by ID or email)
+export const assignAdminRoleToExistingUser = catchAsync(
+  async (req, res, next) => {
+    const { userId, email, adminRoleId, role: newRole } = req.body;
+
+    if (!adminRoleId) {
+      return next(new AppError("Admin role ID is required", 400));
+    }
+
+    let user;
+    if (userId) {
+      user = await User.findById(userId);
+    } else if (email) {
+      user = await User.findOne({ email: email.toLowerCase().trim() });
+    }
+
+    if (!user) {
+      return next(new AppError("User not found with provided ID or email", 404));
+    }
+
+    const role = await AdminRole.findById(adminRoleId);
+    if (!role) {
+      return next(new AppError("Invalid admin role specified", 400));
+    }
+
+    const adminPermissions = {};
+    role.permissions.forEach((perm) => {
+      if (perm.canView !== false) {
+        adminPermissions[perm.page] = {
+          canView: true,
+          canCreate: true,
+          canEdit: true,
+          canDelete: true,
+        };
+      } else {
+        adminPermissions[perm.page] = {
+          canView: false,
+          canCreate: false,
+          canEdit: false,
+          canDelete: false,
+        };
+      }
+    });
+
+    const updateData = { adminRoleId, adminPermissions };
+    if (newRole && ["admin", "teacher", "student", "employee"].includes(newRole)) {
+      updateData.role = newRole;
+    }
+
+    const updatedUserDoc = await User.findByIdAndUpdate(user._id, updateData, {
+      new: true,
+      runValidators: true,
+    })
+      .select("+adminPermissions +adminRoleId")
+      .populate("adminRoleId", "name description");
+
+    const updatedUser = updatedUserDoc.toObject
+      ? updatedUserDoc.toObject()
+      : { ...updatedUserDoc };
+    if (updatedUser.adminPermissions instanceof Map) {
+      updatedUser.adminPermissions = Object.fromEntries(
+        updatedUser.adminPermissions,
+      );
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: `Admin access granted to ${updatedUser.fullname} successfully`,
+      data: {
+        user: updatedUser,
+      },
+    });
+  },
+);
+
+// Get all users across the platform with their admin role status
+export const getAllUsersWithAdminStatus = catchAsync(async (req, res, next) => {
+  const { search, role, hasAdminRole, page = 1, limit = 50 } = req.query;
+  const query = {};
+
+  if (search && search.trim()) {
+    const term = search.trim();
+    query.$or = [
+      { fullname: { $regex: term, $options: "i" } },
+      { email: { $regex: term, $options: "i" } },
+      { phone: { $regex: term, $options: "i" } },
+    ];
+  }
+
+  if (role && role !== "all") {
+    query.role = role;
+  }
+
+  if (hasAdminRole === "true") {
+    query.$or = [
+      { role: "admin" },
+      { role: "employee" },
+      { adminRoleId: { $exists: true, $ne: null } },
+    ];
+  } else if (hasAdminRole === "false") {
+    query.role = { $nin: ["admin"] };
+    query.adminRoleId = { $in: [null, undefined] };
+  }
+
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [total, users] = await Promise.all([
+    User.countDocuments(query),
+    User.find(query)
+      .select("+adminPermissions +adminRoleId")
+      .populate("adminRoleId", "name description")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum),
+  ]);
+
+  const formattedUsers = users.map((u) => {
+    const userObj = u.toObject ? u.toObject() : { ...u };
+    if (userObj.adminPermissions instanceof Map) {
+      userObj.adminPermissions = Object.fromEntries(userObj.adminPermissions);
+    }
+    return userObj;
+  });
+
+  res.status(200).json({
+    status: "success",
+    total,
+    page: pageNum,
+    totalPages: Math.ceil(total / limitNum),
+    results: formattedUsers.length,
+    data: {
+      users: formattedUsers,
+    },
+  });
+});
+
 
 // Get available pages for permissions
 export const getAvailablePages = catchAsync(async (req, res, next) => {

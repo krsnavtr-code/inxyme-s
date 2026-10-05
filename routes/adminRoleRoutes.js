@@ -13,6 +13,9 @@ import {
   getAdminUsers,
   createAdminUser,
   updateAdminUserRole,
+  revokeAdminUserRole,
+  assignAdminRoleToExistingUser,
+  getAllUsersWithAdminStatus,
   getAvailablePages,
 } from "../controller/adminRoleController.js";
 
@@ -44,18 +47,34 @@ router.delete(
 
 // Admin user management routes
 router.get("/users", getAdminUsers);
+router.get(
+  "/all-users",
+  checkPermission("admin-management", "canView"),
+  getAllUsersWithAdminStatus,
+);
 router.post(
   "/users",
   checkPermission("admin-management", "canCreate"),
   createAdminUser,
+);
+router.post(
+  "/assign-user",
+  checkPermission("admin-management", "canCreate"),
+  assignAdminRoleToExistingUser,
 );
 router.patch(
   "/users/:id/role",
   checkPermission("admin-management", "canEdit"),
   updateAdminUserRole,
 );
+router.delete(
+  "/users/:id/role",
+  checkPermission("admin-management", "canDelete"),
+  revokeAdminUserRole,
+);
 
 // Utility routes
 router.get("/pages", getAvailablePages);
 
 export default router;
+
