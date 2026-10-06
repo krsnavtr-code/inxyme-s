@@ -50,12 +50,30 @@ const reviewSchema = new mongoose.Schema(
         trim: true,
       },
     ],
+    reviewType: {
+      type: String,
+      enum: ["text", "video"],
+      default: "video",
+      index: true,
+    },
+    videoUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    videoSize: {
+      type: Number,
+      default: 0,
+    },
+    videoDuration: {
+      type: Number,
+      default: 0,
+    },
     reviewText: {
       type: String,
-      required: [true, "Review text is required"],
       trim: true,
-      minlength: [5, "Review must be at least 5 characters long"],
       maxlength: [2000, "Review cannot exceed 2000 characters"],
+      default: "",
     },
     status: {
       type: String,

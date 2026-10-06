@@ -144,6 +144,105 @@ export const submitReview = async (req, res) => {
   }
 };
 
+// 1.1 Submit a student video review (Public)
+export const submitVideoReview = async (req, res) => {
+  try {
+    const {
+      studentName,
+      studentEmail,
+      studentPhone,
+      rating,
+      tags,
+      reviewText,
+      videoDuration,
+      courseId,
+      courseSlug,
+    } = req.body;
+
+    if (!studentName || !studentName.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter your name.",
+      });
+    }
+
+    const numericRating = Number(rating);
+    if (!numericRating || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select a star rating between 1 and 5.",
+      });
+    }
+
+    if (!req.file && (!req.body.videoUrl || !req.body.videoUrl.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Please record or upload a video file for your review.",
+      });
+    }
+
+    let parsedTags = [];
+    if (tags) {
+      if (Array.isArray(tags)) {
+        parsedTags = tags;
+      } else if (typeof tags === "string") {
+        try {
+          parsedTags = JSON.parse(tags);
+        } catch {
+          parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean);
+        }
+      }
+    }
+
+    let videoUrl = "";
+    let videoSize = 0;
+    if (req.file) {
+      videoUrl = `/uploads/${req.file.filename}`;
+      videoSize = req.file.size;
+    } else if (req.body.videoUrl) {
+      videoUrl = req.body.videoUrl.trim();
+    }
+
+    // IP address logging
+    const ipAddress =
+      req.headers["x-forwarded-for"]?.split(",")[0] ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      "";
+
+    const newReview = await Review.create({
+      reviewType: "video",
+      videoUrl,
+      videoSize,
+      videoDuration: Number(videoDuration) || 0,
+      courseName: req.body.courseName?.trim() || "Inxyme Learning",
+      studentName: studentName.trim(),
+      studentEmail: studentEmail ? studentEmail.trim().toLowerCase() : "",
+      studentPhone: studentPhone ? studentPhone.trim() : "",
+      rating: numericRating,
+      tags: parsedTags,
+      reviewText: reviewText ? reviewText.trim() : `Video Review by ${studentName.trim()}`,
+      status: "pending",
+      verified: false,
+      ipAddress,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message:
+        "Thank you! Your video review has been uploaded successfully and will be verified by our team.",
+      data: newReview,
+    });
+  } catch (error) {
+    console.error("Error submitting video review:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while uploading your video review. Please try again.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 // 2. Get list of courses for review selection (Public)
 export const getReviewCourses = async (req, res) => {
   try {
@@ -209,6 +308,7 @@ export const getAdminReviews = async (req, res) => {
       courseId,
       rating,
       search,
+      reviewType,
       page = 1,
       limit = 15,
       sortBy = "createdAt",
@@ -219,6 +319,10 @@ export const getAdminReviews = async (req, res) => {
 
     if (status && status !== "all") {
       filter.status = status;
+    }
+
+    if (reviewType && reviewType !== "all") {
+      filter.reviewType = reviewType;
     }
 
     if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
@@ -281,11 +385,13 @@ export const getAdminReviews = async (req, res) => {
 // 5. Get review statistics for admin dashboard (Admin)
 export const getReviewStats = async (req, res) => {
   try {
-    const [total, pending, approved, rejected, ratingStats] = await Promise.all([
+    const [total, pending, approved, rejected, textCount, videoCount, ratingStats] = await Promise.all([
       Review.countDocuments(),
       Review.countDocuments({ status: "pending" }),
       Review.countDocuments({ status: "approved" }),
       Review.countDocuments({ status: "rejected" }),
+      Review.countDocuments({ reviewType: "text" }),
+      Review.countDocuments({ reviewType: "video" }),
       Review.aggregate([
         { $match: { status: "approved" } },
         {
@@ -310,6 +416,8 @@ export const getReviewStats = async (req, res) => {
         pending,
         approved,
         rejected,
+        textCount,
+        videoCount,
         averageRating,
       },
     });

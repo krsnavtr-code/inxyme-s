@@ -1,6 +1,10 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
+import fsSync from "fs";
 import {
   submitReview,
+  submitVideoReview,
   getReviewCourses,
   getPublicReviews,
   getAdminReviews,
@@ -16,9 +20,56 @@ import {
 
 const router = express.Router();
 
+// Multer storage for review videos
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadsDir = path.join(process.cwd(), "public", "uploads");
+    if (!fsSync.existsSync(uploadsDir)) {
+      fsSync.mkdirSync(uploadsDir, { recursive: true });
+    }
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname) || ".webm";
+    const baseName =
+      path
+        .basename(file.originalname, ext)
+        .replace(/[^\w\d-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-+|-+$/g, "") || "video-review";
+
+    const randomSuffix = Math.floor(Math.random() * 100000)
+      .toString()
+      .padStart(5, "0");
+    const filename = `review-${baseName}-${Date.now()}-${randomSuffix}${ext}`;
+    cb(null, filename);
+  },
+});
+
+const uploadReviewVideo = multer({
+  storage: storage,
+  limits: {
+    fileSize: 150 * 1024 * 1024, // 150MB max file size
+  },
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype.startsWith("video/") ||
+      file.mimetype === "application/octet-stream" ||
+      /\.(mp4|webm|mov|mkv|avi|3gp)$/i.test(file.originalname)
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Please upload a valid video file (MP4, WebM, MOV)."));
+    }
+  },
+});
+
 // ==================== PUBLIC ROUTES ====================
-// Submit a student review
+// Submit a written student review
 router.post("/", submitReview);
+
+// Submit a recorded or uploaded video review
+router.post("/video", uploadReviewVideo.single("video"), submitVideoReview);
 
 // Get list of active courses for dropdown
 router.get("/courses", getReviewCourses);
