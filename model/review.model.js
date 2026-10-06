@@ -52,9 +52,10 @@ const reviewSchema = new mongoose.Schema(
     ],
     reviewText: {
       type: String,
+      required: [true, "Review text is required"],
       trim: true,
+      minlength: [5, "Review must be at least 5 characters long"],
       maxlength: [2000, "Review cannot exceed 2000 characters"],
-      default: "",
     },
     status: {
       type: String,

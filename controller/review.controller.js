@@ -70,6 +70,20 @@ export const submitReview = async (req, res) => {
       });
     }
 
+    if (!reviewText || !reviewText.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Please write your review or experience.",
+      });
+    }
+
+    if (reviewText.trim().length < 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Review must be at least 5 characters long.",
+      });
+    }
+
     // Find course by ID or slug if provided
     let courseDoc = null;
     if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
