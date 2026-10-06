@@ -37,6 +37,11 @@ const reviewSchema = new mongoose.Schema(
       required: [true, "Phone number is required"],
       trim: true,
     },
+    studentPhoto: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     rating: {
       type: Number,
       required: [true, "Rating is required"],

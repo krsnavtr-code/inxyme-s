@@ -6,6 +6,7 @@ import {
   submitReview,
   submitVideoReview,
   uploadReviewVideoFile,
+  uploadReviewPhotoFile,
   getReviewCourses,
   getPublicReviews,
   getAdminReviews,
@@ -65,9 +66,27 @@ const uploadReviewVideo = multer({
   },
 });
 
+// Multer storage for student selfie photos (Written review)
+const uploadReviewPhoto = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for selfie photo
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Please upload a valid image file (JPEG, PNG, WebP)."));
+    }
+  },
+});
+
 // ==================== PUBLIC ROUTES ====================
-// Submit a written student review
-router.post("/", submitReview);
+// Submit a written student review (supports optional selfie photo directly or pre-uploaded URL)
+router.post("/", uploadReviewPhoto.single("photo"), submitReview);
+
+// Fast selfie photo upload for written review
+router.post("/upload-photo", uploadReviewPhoto.single("photo"), uploadReviewPhotoFile);
 
 // Submit a recorded or uploaded video review
 router.post("/video", uploadReviewVideo.single("video"), submitVideoReview);

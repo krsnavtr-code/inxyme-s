@@ -128,6 +128,10 @@ export const submitReview = async (req, res) => {
       ? courseDoc.title
       : req.body.courseName?.trim() || "Inxyme Learning";
 
+    const studentPhoto = req.file
+      ? `/uploads/${req.file.filename}`
+      : req.body.studentPhoto?.trim() || "";
+
     const newReview = await Review.create({
       course: courseDoc ? courseDoc._id : null,
       courseName: resolvedCourseName,
@@ -135,6 +139,7 @@ export const submitReview = async (req, res) => {
       studentName: studentName.trim(),
       studentEmail: studentEmail ? studentEmail.trim().toLowerCase() : "",
       studentPhone: studentPhone ? studentPhone.trim() : "",
+      studentPhoto,
       rating: numericRating,
       tags: cleanedTags,
       reviewText: reviewText ? reviewText.trim() : "",
@@ -299,6 +304,34 @@ export const uploadReviewVideoFile = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to upload video in background.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// 1.3 Fast photo/selfie upload for written reviews (Public)
+export const uploadReviewPhotoFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No photo file was uploaded.",
+      });
+    }
+
+    const photoUrl = `/uploads/${req.file.filename}`;
+
+    return res.status(200).json({
+      success: true,
+      message: "Photo uploaded successfully.",
+      photoUrl,
+      filename: req.file.filename,
+    });
+  } catch (error) {
+    console.error("Error in uploadReviewPhotoFile:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload photo.",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
