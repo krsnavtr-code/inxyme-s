@@ -247,6 +247,22 @@ app.use(
   }),
 );
 
+// Explicitly serve /uploads directory with byte-range and video headers
+app.use(
+  "/uploads",
+  express.static(uploadsDir, {
+    acceptRanges: true,
+    setHeaders: (res, filePath) => {
+      res.setHeader("Accept-Ranges", "bytes");
+      if (filePath.endsWith(".webm")) {
+        res.setHeader("Content-Type", "video/webm");
+      } else if (filePath.endsWith(".mp4")) {
+        res.setHeader("Content-Type", "video/mp4");
+      }
+    },
+  }),
+);
+
 // Serve uploaded brochures from the public/uploaded_brochure directory
 const uploadedBrochuresDir = path.join(publicDir, "uploaded_brochure");
 app.use(

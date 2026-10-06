@@ -2,6 +2,13 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import fsSync from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Always points to server/public/uploads
+const uploadsDir = path.resolve(__dirname, "..", "public", "uploads");
+
 import {
   submitReview,
   submitVideoReview,
@@ -25,7 +32,6 @@ const router = express.Router();
 // Multer storage for review videos
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
     if (!fsSync.existsSync(uploadsDir)) {
       fsSync.mkdirSync(uploadsDir, { recursive: true });
     }
