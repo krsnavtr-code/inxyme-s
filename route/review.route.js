@@ -5,6 +5,7 @@ import fsSync from "fs";
 import {
   submitReview,
   submitVideoReview,
+  uploadReviewVideoFile,
   getReviewCourses,
   getPublicReviews,
   getAdminReviews,
@@ -70,6 +71,9 @@ router.post("/", submitReview);
 
 // Submit a recorded or uploaded video review
 router.post("/video", uploadReviewVideo.single("video"), submitVideoReview);
+
+// Fast background video pre-upload
+router.post("/upload-video", uploadReviewVideo.single("video"), uploadReviewVideoFile);
 
 // Get list of active courses for dropdown
 router.get("/courses", getReviewCourses);

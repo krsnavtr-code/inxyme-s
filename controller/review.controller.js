@@ -70,6 +70,21 @@ export const submitReview = async (req, res) => {
       });
     }
 
+    if (!studentPhone || !studentPhone.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter your phone / WhatsApp number.",
+      });
+    }
+
+    const phoneDigits = studentPhone.replace(/\D/g, "");
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid phone number.",
+      });
+    }
+
     if (!reviewText || !reviewText.trim()) {
       return res.status(400).json({
         success: false,
@@ -174,6 +189,21 @@ export const submitVideoReview = async (req, res) => {
       });
     }
 
+    if (!studentPhone || !studentPhone.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter your phone / WhatsApp number.",
+      });
+    }
+
+    const phoneDigits = studentPhone.replace(/\D/g, "");
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid phone number.",
+      });
+    }
+
     if (!req.file && (!req.body.videoUrl || !req.body.videoUrl.trim())) {
       return res.status(400).json({
         success: false,
@@ -201,6 +231,7 @@ export const submitVideoReview = async (req, res) => {
       videoSize = req.file.size;
     } else if (req.body.videoUrl) {
       videoUrl = req.body.videoUrl.trim();
+      videoSize = Number(req.body.videoSize) || 0;
     }
 
     // IP address logging
@@ -238,6 +269,36 @@ export const submitVideoReview = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "An error occurred while uploading your video review. Please try again.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// 1.2 Fast background video pre-upload (Public)
+export const uploadReviewVideoFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No video file was uploaded.",
+      });
+    }
+
+    const videoUrl = `/uploads/${req.file.filename}`;
+    const videoSize = req.file.size;
+
+    return res.status(200).json({
+      success: true,
+      message: "Video pre-uploaded successfully.",
+      videoUrl,
+      videoSize,
+      filename: req.file.filename,
+    });
+  } catch (error) {
+    console.error("Error in uploadReviewVideoFile:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload video in background.",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

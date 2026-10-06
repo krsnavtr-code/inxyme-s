@@ -34,8 +34,8 @@ const reviewSchema = new mongoose.Schema(
     },
     studentPhone: {
       type: String,
+      required: [true, "Phone number is required"],
       trim: true,
-      default: "",
     },
     rating: {
       type: Number,
