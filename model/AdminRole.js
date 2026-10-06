@@ -25,6 +25,7 @@ const permissionSchema = new mongoose.Schema(
         "faqs",
         "image-gallery",
         "admin-management",
+        "reviews",
       ],
     },
     canView: {

@@ -55,6 +55,7 @@ import leadRoute from "./route/lead.route.js";
 import partialLeadRoute from "./route/partialLead.route.js";
 import visitorRoute from "./route/visitor.route.js";
 import magicLinkRoutes from "./routes/magicLinkRoutes.js";
+import reviewRoute, { adminReviewRouter } from "./route/review.route.js";
 
 import dns from "dns";
 import { createServer } from "http";
@@ -433,6 +434,7 @@ app.use("/api/leads", leadRoute);
 app.use("/api/partial-leads", partialLeadRoute);
 app.use("/api/visitors", visitorRoute);
 app.use("/api/magic-link", magicLinkRoutes);
+app.use("/api/reviews", reviewRoute);
 
 // Auth routes
 app.use("/api/auth", authRoutes);
@@ -451,6 +453,7 @@ app.use("/api/sessions", sessionRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin/payments", adminPaymentRoutes);
 app.use("/api/admin/faqs", adminFaqRouter);
+app.use("/api/admin/reviews", adminReviewRouter);
 app.use("/api/v1/sprints", sprintRoutes);
 app.use("/api/v1/tasks", taskRoutes);
 app.use("/api/discussions", discussionRoutes);

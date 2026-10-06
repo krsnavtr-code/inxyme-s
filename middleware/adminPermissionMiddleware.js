@@ -177,6 +177,7 @@ export const getAccessiblePages = (user) => {
       "faqs",
       "image-gallery",
       "admin-management",
+      "reviews",
     ];
   }
 
