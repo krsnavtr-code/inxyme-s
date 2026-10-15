@@ -360,11 +360,15 @@ export const getReviewCourses = async (req, res) => {
   }
 };
 
-// 3. Get approved reviews (Public, optional for course detail / website)
+// 3. Get approved reviews (Public, for course detail & Success Stories page)
 export const getPublicReviews = async (req, res) => {
   try {
-    const { courseId, courseSlug, limit = 10 } = req.query;
-    const filter = { status: "approved" };
+    const { courseId, courseSlug, reviewType, status = "approved", limit = 100 } = req.query;
+    const filter = {};
+
+    if (status && status !== "all") {
+      filter.status = status;
+    }
 
     if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
       filter.course = courseId;
@@ -372,10 +376,16 @@ export const getPublicReviews = async (req, res) => {
       filter.courseSlug = courseSlug.toString().toLowerCase().trim();
     }
 
+    if (reviewType && ["text", "video"].includes(reviewType)) {
+      filter.reviewType = reviewType;
+    }
+
     const reviews = await Review.find(filter)
-      .select("studentName rating tags reviewText courseName courseSlug createdAt")
+      .select(
+        "studentName studentPhoto rating tags reviewType videoUrl videoDuration reviewText courseName courseSlug status verified createdAt"
+      )
       .sort({ createdAt: -1 })
-      .limit(Number(limit))
+      .limit(Number(limit) || 100)
       .lean();
 
     return res.status(200).json({
