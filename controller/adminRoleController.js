@@ -519,6 +519,7 @@ export const getAvailablePages = catchAsync(async (req, res, next) => {
     { key: "admin-management", label: "Admin Management", icon: "user-shield" },
     { key: "reviews", label: "Student Reviews", icon: "star" },
     { key: "success-stories", label: "Success Stories", icon: "trophy" },
+    { key: "news-events", label: "News & Events", icon: "calendar" },
   ];
 
   res.status(200).json({
