@@ -6,6 +6,11 @@ import {
   createRazorpayOrder,
   verifyPayment 
 } from '../controllers/paymentController.js';
+import {
+  getPublicPaymentLink,
+  createPaymentLinkOrder,
+  verifyPaymentLinkPayment,
+} from '../controllers/paymentLinkController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -32,6 +37,11 @@ const paymentValidationRules = [
 router.post('/direct', paymentValidationRules, createDirectPayment);
 router.post('/create-order', createRazorpayOrder);
 router.post('/verify', verifyPayment);
+
+// Public payment link routes
+router.get('/link/:linkId', getPublicPaymentLink);
+router.post('/link/:linkId/create-order', createPaymentLinkOrder);
+router.post('/link/:linkId/verify', verifyPaymentLinkPayment);
 
 // Protected routes
 router.use(protect);
