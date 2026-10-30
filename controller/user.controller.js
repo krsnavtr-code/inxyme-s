@@ -199,7 +199,9 @@ export const login = async(req, res) => {
             fullname: user.fullname,
             email: user.email,
             role: user.role || 'student',
-            department: user.department
+            department: user.department,
+            isActive: user.isActive !== false,
+            isApproved: Boolean(user.isApproved)
         };
 
         res.status(200).json({

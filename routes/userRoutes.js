@@ -9,8 +9,12 @@ import {
   updateUserStatus,
   updateUserLMSStatus,
   updateUserDiscount,
+  getLmsUsers,
 } from "../controllers/userController.js";
 const router = express.Router();
+
+// Public route for LMS / Smart Board users directory
+router.get("/lms-users", getLmsUsers);
 
 // Routes with admin authorization
 router.route("/").get(protect, authorize("admin"), getAllUsers);

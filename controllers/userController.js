@@ -11,6 +11,22 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
+// Get LMS users (public endpoint for Smart Board authentication & directory)
+export const getLmsUsers = async (req, res) => {
+  try {
+    const users = await User.find(
+      {},
+      "_id fullname email role isActive isApproved department createdAt lastLogin"
+    )
+      .sort({ fullname: 1 })
+      .lean();
+    res.status(200).json({ success: true, users });
+  } catch (error) {
+    console.error("Error fetching LMS users:", error);
+    res.status(500).json({ success: false, message: "Error fetching LMS users" });
+  }
+};
+
 // Get user by ID
 export const getUserById = async (req, res) => {
   try {

@@ -122,7 +122,7 @@ export const enrollInCourse = asyncHandler(async (req, res) => {
 // @route   POST /api/enrollments/admin-enroll
 // @access  Private/Admin
 export const adminEnrollUser = asyncHandler(async (req, res) => {
-  const { userId, courseId, status = "active" } = req.body;
+  const { userId, courseId, courseIds, status = "active" } = req.body;
 
   // Check if user exists
   const user = await User.findById(userId);
@@ -131,42 +131,65 @@ export const adminEnrollUser = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  // Check if course exists
-  const course = await Course.findById(courseId);
-  if (!course) {
-    res.status(404);
-    throw new Error("Course not found");
-  }
+  // Support both single courseId and multiple courseIds
+  const idsToEnroll = Array.isArray(courseIds)
+    ? courseIds
+    : courseId
+      ? [courseId]
+      : [];
 
-  // Check for existing enrollment
-  const existingEnrollment = await Enrollment.findOne({
-    user: userId,
-    course: courseId,
-  });
-
-  if (existingEnrollment) {
+  if (idsToEnroll.length === 0) {
     res.status(400);
-    throw new Error("User is already enrolled in this course");
+    throw new Error("Please provide at least one course to enroll");
   }
 
-  // Create new enrollment
-  const enrollment = await Enrollment.create({
-    user: userId,
-    course: courseId,
-    courseId: course._id.toString(),
-    courseTitle: course.title,
-    status,
-    enrollmentDate: new Date(),
-    lastAccessed: new Date(),
-    progress: 0,
-    isGuestEnrollment: false,
-    enrolledAt: Date.now(),
-    enrolledBy: req.user._id, // Track which admin enrolled the user
-  });
+  const createdEnrollments = [];
+  const errors = [];
+
+  for (const cId of idsToEnroll) {
+    const course = await Course.findById(cId);
+    if (!course) {
+      errors.push(`Course not found for ID: ${cId}`);
+      continue;
+    }
+
+    const existingEnrollment = await Enrollment.findOne({
+      user: userId,
+      course: cId,
+    });
+
+    if (existingEnrollment) {
+      errors.push(`User is already enrolled in "${course.title}"`);
+      continue;
+    }
+
+    const enrollment = await Enrollment.create({
+      user: userId,
+      course: cId,
+      courseId: course._id.toString(),
+      courseTitle: course.title,
+      status,
+      enrollmentDate: new Date(),
+      lastAccessed: new Date(),
+      progress: 0,
+      isGuestEnrollment: false,
+      enrolledAt: Date.now(),
+      enrolledBy: req.user?._id,
+    });
+
+    createdEnrollments.push(enrollment);
+  }
+
+  if (createdEnrollments.length === 0 && errors.length > 0) {
+    res.status(400);
+    throw new Error(errors.join(". "));
+  }
 
   res.status(201).json({
     success: true,
-    data: enrollment,
+    data: createdEnrollments.length === 1 && courseId ? createdEnrollments[0] : createdEnrollments,
+    enrolledCount: createdEnrollments.length,
+    warnings: errors.length > 0 ? errors : undefined,
   });
 });
 
