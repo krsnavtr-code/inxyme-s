@@ -8,6 +8,7 @@ const permissionSchema = new mongoose.Schema(
       enum: [
         "dashboard",
         "lms-management",
+        "batches",
         "test-qa",
         "courses",
         "send-brochure",

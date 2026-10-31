@@ -9,6 +9,8 @@ import {
   getBatchesByCourse,
   getBatchesByTeacher,
   updateBatchEnrollment,
+  getCourseEnrolledUsers,
+  assignStudentsToBatch,
 } from "../controller/batch.controller.js";
 import { isAdmin } from "../middleware/admin.js";
 
@@ -39,9 +41,11 @@ router.post("/", validateBatch, createBatch);
 router.put("/:id", validateBatch, updateBatch);
 router.delete("/:id", deleteBatch);
 router.patch("/:id/enrollment", updateBatchEnrollment);
+router.post("/:id/assign-students", assignStudentsToBatch);
 
 // Public routes
 router.get("/", getAllBatches);
+router.get("/course/:courseId/enrolled-users", getCourseEnrolledUsers);
 router.get("/:id", getBatchById);
 router.get("/course/:courseId", getBatchesByCourse);
 router.get("/teacher/:teacherId", getBatchesByTeacher);

@@ -1,6 +1,7 @@
 import Batch from "../model/batch.model.js";
 import Course from "../model/course.model.js";
 import User from "../model/User.js";
+import Enrollment from "../model/enrollment.model.js";
 import { validationResult } from "express-validator";
 
 // Create a new batch
@@ -26,7 +27,9 @@ export const createBatch = async (req, res) => {
       maxCapacity,
       location,
       meetingLink,
+      whatsappGroupLink,
       description,
+      students,
     } = req.body;
 
     // Verify course exists
@@ -38,8 +41,11 @@ export const createBatch = async (req, res) => {
       });
     }
 
-    // Verify teacher exists and has teacher role
-    const teacherExists = await User.findOne({ _id: teacher, role: "teacher" });
+    // Verify teacher exists and has teacher or admin role
+    const teacherExists = await User.findOne({
+      _id: teacher,
+      role: { $in: ["teacher", "admin", "employee", "instructor"] },
+    });
     if (!teacherExists) {
       return res.status(404).json({
         success: false,
@@ -48,7 +54,7 @@ export const createBatch = async (req, res) => {
     }
 
     // Check if batch code already exists
-    const existingBatch = await Batch.findOne({ code });
+    const existingBatch = await Batch.findOne({ code: code.trim().toUpperCase() });
     if (existingBatch) {
       return res.status(400).json({
         success: false,
@@ -56,17 +62,20 @@ export const createBatch = async (req, res) => {
       });
     }
 
+    const initialStudents = Array.isArray(students) ? students : [];
+
     // Create batch
     const batch = new Batch({
       name,
-      code,
+      code: code.trim().toUpperCase(),
       course,
       teacher,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       schedule,
       maxCapacity: maxCapacity || 30,
-      currentEnrollment: 0,
+      students: initialStudents,
+      currentEnrollment: initialStudents.length,
       location,
       meetingLink,
       whatsappGroupLink,
@@ -79,20 +88,34 @@ export const createBatch = async (req, res) => {
     await Course.findByIdAndUpdate(
       course,
       { $addToSet: { batches: savedBatch._id } },
-      { new: true },
+      { new: true }
     );
 
     // Update teacher's assignedBatches array
     await User.findByIdAndUpdate(
       teacher,
       { $addToSet: { assignedBatches: savedBatch._id } },
-      { new: true },
+      { new: true }
     );
+
+    // Update enrolled students' enrolledBatches array & Enrollment records
+    if (initialStudents.length > 0) {
+      await User.updateMany(
+        { _id: { $in: initialStudents } },
+        { $addToSet: { enrolledBatches: savedBatch._id } }
+      ).catch((err) => console.warn("Error updating user enrolledBatches:", err));
+
+      await Enrollment.updateMany(
+        { user: { $in: initialStudents }, course },
+        { $set: { batch: savedBatch._id } }
+      ).catch((err) => console.warn("Error updating enrollment batch:", err));
+    }
 
     // Populate related fields
     const populatedBatch = await Batch.findById(savedBatch._id)
       .populate("course", "title _id")
-      .populate("teacher", "fullname email _id");
+      .populate("teacher", "fullname email _id")
+      .populate("students", "fullname email role phone avatar");
 
     res.status(201).json({
       success: true,
@@ -116,22 +139,18 @@ export const getAllBatches = async (req, res) => {
 
     const query = {};
 
-    // Add course filter if provided
     if (course) {
       query.course = course;
     }
 
-    // Add teacher filter if provided
     if (teacher) {
       query.teacher = teacher;
     }
 
-    // Add status filter if provided
     if (status) {
       query.status = status;
     }
 
-    // Handle search query
     if (search && search.trim()) {
       const searchRegex = new RegExp(search, "i");
       query.$or = [
@@ -140,7 +159,6 @@ export const getAllBatches = async (req, res) => {
       ];
     }
 
-    // Build the sort object
     let sortObj = { createdAt: -1 };
     if (sort) {
       sortObj = {};
@@ -152,13 +170,12 @@ export const getAllBatches = async (req, res) => {
       });
     }
 
-    // Execute the query
     let batchesQuery = Batch.find(query)
-      .populate("course", "title _id")
-      .populate("teacher", "fullname email _id")
+      .populate("course", "title slug _id")
+      .populate("teacher", "fullname email role department _id")
+      .populate("students", "fullname email role phone avatar isActive")
       .sort(sortObj);
 
-    // Apply limit if specified
     if (limit && !isNaN(parseInt(limit))) {
       batchesQuery = batchesQuery.limit(parseInt(limit));
     }
@@ -183,7 +200,8 @@ export const getBatchById = async (req, res) => {
   try {
     const batch = await Batch.findById(req.params.id)
       .populate("course", "title description _id")
-      .populate("teacher", "fullname email department _id");
+      .populate("teacher", "fullname email department _id")
+      .populate("students", "fullname email role phone avatar isActive createdAt");
 
     if (!batch) {
       return res.status(404).json({
@@ -233,9 +251,9 @@ export const updateBatch = async (req, res) => {
       description,
       status,
       isActive,
+      students,
     } = req.body;
 
-    // Find existing batch
     const batch = await Batch.findById(batchId);
     if (!batch) {
       return res.status(404).json({
@@ -244,7 +262,6 @@ export const updateBatch = async (req, res) => {
       });
     }
 
-    // If changing course, verify it exists
     const oldCourseId = batch.course.toString();
     if (course && course !== oldCourseId) {
       const courseExists = await Course.findById(course);
@@ -254,20 +271,18 @@ export const updateBatch = async (req, res) => {
           message: "Course not found",
         });
       }
-      // Remove from old course's batches array
       await Course.findByIdAndUpdate(
         oldCourseId,
         { $pull: { batches: batch._id } },
-        { new: true },
+        { new: true }
       );
     }
 
-    // If changing teacher, verify they exist and have teacher role
     const oldTeacherId = batch.teacher.toString();
     if (teacher && teacher !== oldTeacherId) {
       const teacherExists = await User.findOne({
         _id: teacher,
-        role: "teacher",
+        role: { $in: ["teacher", "admin", "employee", "instructor"] },
       });
       if (!teacherExists) {
         return res.status(404).json({
@@ -275,17 +290,15 @@ export const updateBatch = async (req, res) => {
           message: "Teacher not found or invalid role",
         });
       }
-      // Remove from old teacher's assignedBatches array
       await User.findByIdAndUpdate(
         oldTeacherId,
         { $pull: { assignedBatches: batch._id } },
-        { new: true },
+        { new: true }
       );
     }
 
-    // If changing code, check for duplicates
-    if (code && code !== batch.code) {
-      const existingBatch = await Batch.findOne({ code });
+    if (code && code.trim().toUpperCase() !== batch.code) {
+      const existingBatch = await Batch.findOne({ code: code.trim().toUpperCase() });
       if (existingBatch) {
         return res.status(400).json({
           success: false,
@@ -294,9 +307,8 @@ export const updateBatch = async (req, res) => {
       }
     }
 
-    // Update fields
     if (name) batch.name = name;
-    if (code) batch.code = code;
+    if (code) batch.code = code.trim().toUpperCase();
     if (course) batch.course = course;
     if (teacher) batch.teacher = teacher;
     if (startDate) batch.startDate = new Date(startDate);
@@ -305,36 +317,69 @@ export const updateBatch = async (req, res) => {
     if (maxCapacity !== undefined) batch.maxCapacity = maxCapacity;
     if (location !== undefined) batch.location = location;
     if (meetingLink !== undefined) batch.meetingLink = meetingLink;
-    if (whatsappGroupLink !== undefined)
-      batch.whatsappGroupLink = whatsappGroupLink;
+    if (whatsappGroupLink !== undefined) batch.whatsappGroupLink = whatsappGroupLink;
     if (description !== undefined) batch.description = description;
     if (status) batch.status = status;
     if (isActive !== undefined) batch.isActive = isActive;
 
+    // Handle students assignment if provided
+    if (students !== undefined && Array.isArray(students)) {
+      const oldStudentIds = (batch.students || []).map((s) => s.toString());
+      const newStudentIds = students.map((s) => s.toString());
+
+      const removed = oldStudentIds.filter((sId) => !newStudentIds.includes(sId));
+      const added = newStudentIds.filter((sId) => !oldStudentIds.includes(sId));
+
+      if (removed.length > 0) {
+        await User.updateMany(
+          { _id: { $in: removed } },
+          { $pull: { enrolledBatches: batch._id } }
+        ).catch(() => {});
+
+        await Enrollment.updateMany(
+          { user: { $in: removed }, course: batch.course },
+          { $unset: { batch: "" } }
+        ).catch(() => {});
+      }
+
+      if (added.length > 0) {
+        await User.updateMany(
+          { _id: { $in: added } },
+          { $addToSet: { enrolledBatches: batch._id } }
+        ).catch(() => {});
+
+        await Enrollment.updateMany(
+          { user: { $in: added }, course: batch.course },
+          { $set: { batch: batch._id } }
+        ).catch(() => {});
+      }
+
+      batch.students = students;
+      batch.currentEnrollment = students.length;
+    }
+
     const updatedBatch = await batch.save();
 
-    // Add to new course's batches array if course changed
     if (course && course !== oldCourseId) {
       await Course.findByIdAndUpdate(
         course,
         { $addToSet: { batches: updatedBatch._id } },
-        { new: true },
+        { new: true }
       );
     }
 
-    // Add to new teacher's assignedBatches array if teacher changed
     if (teacher && teacher !== oldTeacherId) {
       await User.findByIdAndUpdate(
         teacher,
         { $addToSet: { assignedBatches: updatedBatch._id } },
-        { new: true },
+        { new: true }
       );
     }
 
-    // Populate related fields
     const populatedBatch = await Batch.findById(updatedBatch._id)
       .populate("course", "title _id")
-      .populate("teacher", "fullname email _id");
+      .populate("teacher", "fullname email _id")
+      .populate("students", "fullname email role phone avatar");
 
     res.json({
       success: true,
@@ -367,17 +412,29 @@ export const deleteBatch = async (req, res) => {
     await Course.findByIdAndUpdate(
       batch.course,
       { $pull: { batches: batch._id } },
-      { new: true },
+      { new: true }
     );
 
     // Remove from teacher's assignedBatches array
     await User.findByIdAndUpdate(
       batch.teacher,
       { $pull: { assignedBatches: batch._id } },
-      { new: true },
+      { new: true }
     );
 
-    // Delete the batch
+    // Remove from students' enrolledBatches array
+    if (batch.students && batch.students.length > 0) {
+      await User.updateMany(
+        { _id: { $in: batch.students } },
+        { $pull: { enrolledBatches: batch._id } }
+      ).catch(() => {});
+
+      await Enrollment.updateMany(
+        { batch: batch._id },
+        { $unset: { batch: "" } }
+      ).catch(() => {});
+    }
+
     await Batch.findByIdAndDelete(req.params.id);
 
     res.json({
@@ -406,6 +463,7 @@ export const getBatchesByCourse = async (req, res) => {
 
     const batches = await Batch.find(query)
       .populate("teacher", "fullname email department _id")
+      .populate("students", "fullname email role phone avatar")
       .sort({ startDate: 1 });
 
     res.json({
@@ -434,6 +492,7 @@ export const getBatchesByTeacher = async (req, res) => {
 
     const batches = await Batch.find(query)
       .populate("course", "title description _id")
+      .populate("students", "fullname email role phone avatar")
       .sort({ startDate: 1 });
 
     res.json({
@@ -453,7 +512,7 @@ export const getBatchesByTeacher = async (req, res) => {
 export const updateBatchEnrollment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { action } = req.body; // 'increment' or 'decrement'
+    const { action } = req.body;
 
     const batch = await Batch.findById(id);
     if (!batch) {
@@ -489,6 +548,185 @@ export const updateBatchEnrollment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error",
+    });
+  }
+};
+
+// @desc    Get all users (teachers and students) enrolled in a specific course for batch assignment
+// @route   GET /api/batches/course/:courseId/enrolled-users
+// @access  Admin/Teacher
+export const getCourseEnrolledUsers = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    // 1. Find all active enrollments for this course
+    const enrollments = await Enrollment.find({
+      course: courseId,
+      status: { $ne: "cancelled" },
+    })
+      .populate("user", "fullname email role phone isActive isApproved avatar enrolledBatches")
+      .populate("batch", "name code")
+      .lean();
+
+    // 2. Also find any direct users with course in enrolledCourses
+    const directUsers = await User.find({
+      enrolledCourses: courseId,
+    })
+      .select("fullname email role phone isActive isApproved avatar enrolledBatches")
+      .populate("enrolledBatches", "name code course")
+      .lean();
+
+    // 3. Find existing batches for this course to see who is already assigned
+    const courseBatches = await Batch.find({ course: courseId }).select("_id name code students teacher").lean();
+    const studentBatchMap = new Map();
+    courseBatches.forEach((b) => {
+      (b.students || []).forEach((sId) => {
+        studentBatchMap.set(sId.toString(), {
+          _id: b._id,
+          name: b.name,
+          code: b.code,
+        });
+      });
+    });
+
+    const userMap = new Map();
+
+    enrollments.forEach((e) => {
+      if (e.user && e.user._id) {
+        const uId = e.user._id.toString();
+        const assignedBatch = studentBatchMap.get(uId) || (e.batch ? { _id: e.batch._id, name: e.batch.name, code: e.batch.code } : null);
+        userMap.set(uId, {
+          ...e.user,
+          assignedBatch,
+          enrollmentStatus: e.status || "active",
+        });
+      }
+    });
+
+    directUsers.forEach((u) => {
+      const uId = u._id.toString();
+      if (!userMap.has(uId)) {
+        const assignedBatch = studentBatchMap.get(uId) || null;
+        userMap.set(uId, {
+          ...u,
+          assignedBatch,
+          enrollmentStatus: "active",
+        });
+      }
+    });
+
+    // 4. Fetch all active faculty members (teachers and admins)
+    const allFaculty = await User.find({
+      role: { $in: ["teacher", "admin"] },
+      isActive: true,
+    })
+      .select("fullname email role phone department avatar assignedBatches")
+      .populate("assignedBatches", "name code course")
+      .lean();
+
+    const facultyWithEnrollmentInfo = allFaculty.map((t) => {
+      const isEnrolledInCourse = userMap.has(t._id.toString());
+      return {
+        ...t,
+        isEnrolledInCourse,
+      };
+    });
+
+    const allUsersArray = Array.from(userMap.values());
+    const enrolledStudents = allUsersArray.filter((u) => u.role === "student");
+    const enrolledTeachers = allUsersArray.filter((u) => u.role === "teacher" || u.role === "admin");
+
+    res.json({
+      success: true,
+      courseId,
+      totalEnrolledUsers: allUsersArray.length,
+      enrolledStudents,
+      enrolledTeachers,
+      allFaculty: facultyWithEnrollmentInfo,
+    });
+  } catch (error) {
+    console.error("Error fetching course enrolled users:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Assign or replace students in a batch
+// @route   POST /api/batches/:id/assign-students
+// @access  Admin
+export const assignStudentsToBatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentIds } = req.body;
+
+    if (!Array.isArray(studentIds)) {
+      return res.status(400).json({
+        success: false,
+        message: "studentIds must be an array of user IDs",
+      });
+    }
+
+    const batch = await Batch.findById(id);
+    if (!batch) {
+      return res.status(404).json({
+        success: false,
+        message: "Batch not found",
+      });
+    }
+
+    const oldStudentIds = (batch.students || []).map((s) => s.toString());
+    const newStudentIds = studentIds.map((s) => s.toString());
+
+    const removed = oldStudentIds.filter((sId) => !newStudentIds.includes(sId));
+    const added = newStudentIds.filter((sId) => !oldStudentIds.includes(sId));
+
+    if (removed.length > 0) {
+      await User.updateMany(
+        { _id: { $in: removed } },
+        { $pull: { enrolledBatches: batch._id } }
+      ).catch(() => {});
+
+      await Enrollment.updateMany(
+        { user: { $in: removed }, course: batch.course },
+        { $unset: { batch: "" } }
+      ).catch(() => {});
+    }
+
+    if (added.length > 0) {
+      await User.updateMany(
+        { _id: { $in: added } },
+        { $addToSet: { enrolledBatches: batch._id } }
+      ).catch(() => {});
+
+      await Enrollment.updateMany(
+        { user: { $in: added }, course: batch.course },
+        { $set: { batch: batch._id } }
+      ).catch(() => {});
+    }
+
+    batch.students = studentIds;
+    batch.currentEnrollment = studentIds.length;
+    await batch.save();
+
+    const populatedBatch = await Batch.findById(batch._id)
+      .populate("course", "title _id")
+      .populate("teacher", "fullname email _id")
+      .populate("students", "fullname email role phone avatar");
+
+    res.json({
+      success: true,
+      message: "Batch students updated successfully",
+      data: populatedBatch,
+    });
+  } catch (error) {
+    console.error("Error assigning students to batch:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
     });
   }
 };

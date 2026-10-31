@@ -3,7 +3,7 @@ import User from "../model/User.js";
 // Get all users
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find().populate("enrolledCourses", "title thumbnail slug price").sort({ createdAt: -1 });
     res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -16,8 +16,9 @@ export const getLmsUsers = async (req, res) => {
   try {
     const users = await User.find(
       {},
-      "_id fullname email role isActive isApproved department createdAt lastLogin"
+      "_id fullname email role isActive isApproved department createdAt lastLogin enrolledCourses"
     )
+      .populate("enrolledCourses", "title thumbnail slug price status isPublished isActive")
       .sort({ fullname: 1 })
       .lean();
     res.status(200).json({ success: true, users });
@@ -30,7 +31,7 @@ export const getLmsUsers = async (req, res) => {
 // Get user by ID
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).populate("enrolledCourses", "title thumbnail slug price");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

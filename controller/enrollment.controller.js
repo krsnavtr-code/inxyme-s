@@ -2,6 +2,7 @@ import Enrollment from "../model/enrollment.model.js";
 import Course from "../model/course.model.js";
 import User from "../model/User.js";
 import asyncHandler from "express-async-handler";
+import mongoose from "mongoose";
 
 // @desc    Enroll in a course (for both guests and authenticated users)
 // @route   POST /api/enrollments
@@ -109,6 +110,18 @@ export const enrollInCourse = asyncHandler(async (req, res) => {
 
   const enrollment = await Enrollment.create(enrollmentData);
 
+  // Also sync enrolled courses to User document
+  if (createdEnrollments.length > 0) {
+    try {
+      const enrolledIds = createdEnrollments.map(e => e.course || e.courseId).filter(Boolean);
+      await User.findByIdAndUpdate(userId, {
+        $addToSet: { enrolledCourses: { $each: enrolledIds } }
+      });
+    } catch (uErr) {
+      console.warn("Failed to update user.enrolledCourses:", uErr);
+    }
+  }
+
   res.status(201).json({
     success: true,
     data: enrollment,
@@ -185,6 +198,14 @@ export const adminEnrollUser = asyncHandler(async (req, res) => {
     throw new Error(errors.join(". "));
   }
 
+  // Sync to User's enrolledCourses array
+  if (createdEnrollments.length > 0) {
+    const newCourseIds = createdEnrollments.map((e) => e.course);
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { enrolledCourses: { $each: newCourseIds } },
+    }).catch((err) => console.warn("Failed to sync enrolledCourses to User:", err));
+  }
+
   res.status(201).json({
     success: true,
     data: createdEnrollments.length === 1 && courseId ? createdEnrollments[0] : createdEnrollments,
@@ -206,12 +227,8 @@ export const getMyEnrollments = asyncHandler(async (req, res) => {
       });
     }
 
-    let query = {};
-
-    // Ensure we have a valid user ID
-    const userId = req.user?._id || req.user?.id;
-
-    if (!userId) {
+    const currentUserId = req.user?._id || req.user?.id;
+    if (!currentUserId) {
       console.error("No user ID found in request");
       return res.status(400).json({
         success: false,
@@ -219,21 +236,70 @@ export const getMyEnrollments = asyncHandler(async (req, res) => {
       });
     }
 
-    // If userId is provided and user is admin/employee, use that userId
-    const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "employee" || Boolean(req.user.adminRoleId));
-    if (req.query.userId && isAdmin) {
-      query.user = req.query.userId;
-    } else {
-      // For regular users, only return their non-guest enrollments
-      query.user = userId; // Use the user ID directly
-      query.isGuestEnrollment = { $ne: true }; // Explicitly exclude guest enrollments
+    const isAdmin =
+      req.user &&
+      (req.user.role === "admin" ||
+        req.user.role === "ADMIN" ||
+        req.user.role === "employee" ||
+        req.user.role === "teacher" ||
+        Boolean(req.user.adminRoleId));
+
+    let targetUserId = currentUserId;
+    if (
+      req.query.userId &&
+      (isAdmin || String(req.query.userId) === String(currentUserId))
+    ) {
+      targetUserId = req.query.userId;
     }
 
-    const enrollments = await Enrollment.find(query)
-      .populate("course", "title thumbnail price")
+    const targetUser = await User.findById(targetUserId)
+      .populate("enrolledCourses", "title thumbnail price slug category level")
+      .lean();
+
+    const orConditions = [{ user: targetUserId }];
+    if (targetUser?.email) {
+      const cleanEmail = targetUser.email.toLowerCase().trim();
+      orConditions.push({ "guestInfo.email": cleanEmail });
+      orConditions.push({ "contactInfo.email": cleanEmail });
+      orConditions.push({ email: cleanEmail });
+    }
+
+    let enrollments = await Enrollment.find({ $or: orConditions })
+      .populate("course", "title thumbnail price slug category level")
       .populate("batch", "name code status teacher whatsappGroupLink")
       .sort("-createdAt")
-      .lean(); // Convert to plain JS objects for logging
+      .lean();
+
+    const enrolledCourseIdSet = new Set();
+    enrollments.forEach((e) => {
+      const cId = (e.course?._id || e.course || e.courseId)?.toString();
+      if (cId) enrolledCourseIdSet.add(cId);
+    });
+
+    if (targetUser && Array.isArray(targetUser.enrolledCourses)) {
+      for (const c of targetUser.enrolledCourses) {
+        if (!c) continue;
+        const cId = (c._id || c).toString();
+        if (!enrolledCourseIdSet.has(cId)) {
+          enrolledCourseIdSet.add(cId);
+          enrollments.push({
+            _id: "user_course_" + cId,
+            user: targetUserId,
+            course:
+              typeof c === "object"
+                ? c
+                : { _id: cId, title: "Enrolled Course" },
+            courseId: cId,
+            courseTitle: typeof c === "object" ? c.title : "Enrolled Course",
+            status: "active",
+            enrollmentDate:
+              targetUser.updatedAt || targetUser.createdAt || new Date(),
+            progress: 0,
+            isGuestEnrollment: false,
+          });
+        }
+      }
+    }
 
     res.json({
       success: true,
@@ -249,9 +315,14 @@ export const getMyEnrollments = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get all enrollments (admin only)
-// @route   GET /api/enrollments/all
+// @desc    Admin get user's enrollments by userId
+// @route   GET /api/enrollments/user/:userId
 // @access  Private/Admin
+export const getUserEnrollmentsAdmin = asyncHandler(async (req, res) => {
+  req.query.userId = req.params.userId;
+  return getMyEnrollments(req, res);
+});
+
 export const getAllEnrollments = asyncHandler(async (req, res) => {
   const enrollments = await Enrollment.find({})
     .populate("user", "name email")
@@ -438,5 +509,106 @@ export const enrollInBatch = asyncHandler(async (req, res) => {
     success: true,
     message: "Successfully enrolled in batch and course",
     data: enrollment,
+  });
+});
+
+
+// @desc    Get user's enrolled courses for LMS / Smart Board
+// @route   GET /api/enrollments/lms-user/:userId
+// @access  Public (LMS Integration)
+export const getLmsUserEnrollments = asyncHandler(async (req, res) => {
+  const userId = req.params.userId || req.query.userId;
+  const email = (req.query.email || "").toString().toLowerCase().trim();
+
+  let targetUser = null;
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    targetUser = await User.findById(userId).populate("enrolledCourses").lean();
+  }
+  if (!targetUser && email) {
+    targetUser = await User.findOne({ email }).populate("enrolledCourses").lean();
+  }
+
+  const effectiveUserId = targetUser?._id?.toString() || userId;
+  const orConditions = [];
+
+  if (effectiveUserId && mongoose.Types.ObjectId.isValid(effectiveUserId)) {
+    orConditions.push({ user: effectiveUserId });
+  }
+  if (targetUser?.email || email) {
+    const cleanEmail = (targetUser?.email || email).toLowerCase().trim();
+    orConditions.push({ "guestInfo.email": cleanEmail });
+    orConditions.push({ "contactInfo.email": cleanEmail });
+    orConditions.push({ email: cleanEmail });
+  }
+
+  let enrollments = [];
+  if (orConditions.length > 0) {
+    enrollments = await Enrollment.find({ $or: orConditions })
+      .populate("course", "title thumbnail price slug category level isPublished status isActive")
+      .populate("batch", "name code status teacher whatsappGroupLink")
+      .sort("-createdAt")
+      .lean();
+  }
+
+  const enrolledCourseIdSet = new Set();
+  const enrolledCoursesList = [];
+
+  enrollments.forEach((e) => {
+    const cId = (e.course?._id || e.course || e.courseId)?.toString();
+    if (cId) {
+      enrolledCourseIdSet.add(cId);
+      if (e.course && typeof e.course === "object") {
+        enrolledCoursesList.push(e.course);
+      }
+    }
+  });
+
+  // Also include courses from user's enrolledCourses array
+  if (targetUser && Array.isArray(targetUser.enrolledCourses)) {
+    for (const c of targetUser.enrolledCourses) {
+      if (!c) continue;
+      const cId = (c._id || c).toString();
+      if (!enrolledCourseIdSet.has(cId)) {
+        enrolledCourseIdSet.add(cId);
+        if (typeof c === "object") {
+          enrolledCoursesList.push(c);
+        }
+        enrollments.push({
+          _id: "user_course_" + cId,
+          user: targetUser._id,
+          course: c,
+          courseId: cId,
+          courseTitle: typeof c === "object" ? c.title : "Enrolled Course",
+          status: "active",
+          enrollmentDate: targetUser.updatedAt || targetUser.createdAt || new Date(),
+          progress: 0,
+        });
+      }
+    }
+  }
+
+  // Back-sync to User.enrolledCourses if missing
+  if (targetUser?._id && enrolledCourseIdSet.size > 0) {
+    const idsToSync = Array.from(enrolledCourseIdSet).filter((id) =>
+      mongoose.Types.ObjectId.isValid(id)
+    );
+    if (idsToSync.length > 0) {
+      await User.findByIdAndUpdate(targetUser._id, {
+        $addToSet: { enrolledCourses: { $each: idsToSync } },
+      }).catch(() => {});
+    }
+  }
+
+  res.json({
+    success: true,
+    count: enrollments.length,
+    data: enrollments,
+    courses: enrolledCoursesList,
+    enrolledCourseIds: Array.from(enrolledCourseIdSet),
+    user: {
+      id: targetUser?._id || effectiveUserId,
+      email: targetUser?.email || email,
+      name: targetUser?.fullname,
+    },
   });
 });

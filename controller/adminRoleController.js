@@ -496,6 +496,7 @@ export const getAvailablePages = catchAsync(async (req, res, next) => {
   const pages = [
     { key: "dashboard", label: "Dashboard", icon: "dashboard" },
     { key: "lms-management", label: "LMS Management", icon: "book" },
+    { key: "batches", label: "Batches & Live Classes", icon: "users" },
     { key: "test-qa", label: "Test Q&A", icon: "question-circle" },
     { key: "courses", label: "Courses", icon: "graduation-cap" },
     { key: "send-brochure", label: "Send Brochure", icon: "envelope" },

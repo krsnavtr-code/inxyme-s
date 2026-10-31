@@ -3,10 +3,17 @@ import AppError from "../utils/appError.js";
 // Helper function to extract permission object for a page from Map or plain object
 const getPagePermission = (userPermissions, page) => {
   if (!userPermissions) return null;
+  let perm = null;
   if (userPermissions instanceof Map || typeof userPermissions.get === "function") {
-    return userPermissions.get(page) || null;
+    perm = userPermissions.get(page);
+    if (!perm && page === "batches") perm = userPermissions.get("lms-management");
+    if (!perm && page === "lms-management") perm = userPermissions.get("batches");
+  } else {
+    perm = userPermissions[page];
+    if (!perm && page === "batches") perm = userPermissions["lms-management"];
+    if (!perm && page === "lms-management") perm = userPermissions["batches"];
   }
-  return userPermissions[page] || null;
+  return perm || null;
 };
 
 // Check if user has admin/employee authorization
@@ -163,6 +170,7 @@ export const getAccessiblePages = (user) => {
     return [
       "dashboard",
       "lms-management",
+      "batches",
       "test-qa",
       "courses",
       "send-brochure",
