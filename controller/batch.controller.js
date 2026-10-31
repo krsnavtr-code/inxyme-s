@@ -171,8 +171,8 @@ export const getAllBatches = async (req, res) => {
     }
 
     let batchesQuery = Batch.find(query)
-      .populate("course", "title slug _id")
-      .populate("teacher", "fullname email role department _id")
+      .populate("course", "title slug _id thumbnail image description category level duration")
+      .populate("teacher", "fullname email role department _id avatar")
       .populate("students", "fullname email role phone avatar isActive")
       .sort(sortObj);
 
@@ -491,8 +491,9 @@ export const getBatchesByTeacher = async (req, res) => {
     }
 
     const batches = await Batch.find(query)
-      .populate("course", "title description _id")
-      .populate("students", "fullname email role phone avatar")
+      .populate("course", "title slug _id thumbnail image description category level duration")
+      .populate("teacher", "fullname email role department _id avatar")
+      .populate("students", "fullname email role phone avatar isActive")
       .sort({ startDate: 1 });
 
     res.json({
