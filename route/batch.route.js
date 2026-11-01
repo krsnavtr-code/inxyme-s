@@ -8,6 +8,7 @@ import {
   deleteBatch,
   getBatchesByCourse,
   getBatchesByTeacher,
+  getBatchesByStudent,
   updateBatchEnrollment,
   getCourseEnrolledUsers,
   assignStudentsToBatch,
@@ -49,5 +50,6 @@ router.get("/course/:courseId/enrolled-users", getCourseEnrolledUsers);
 router.get("/:id", getBatchById);
 router.get("/course/:courseId", getBatchesByCourse);
 router.get("/teacher/:teacherId", getBatchesByTeacher);
+router.get("/student/:studentId", getBatchesByStudent);
 
 export default router;

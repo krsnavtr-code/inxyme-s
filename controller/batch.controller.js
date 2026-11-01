@@ -509,6 +509,36 @@ export const getBatchesByTeacher = async (req, res) => {
   }
 };
 
+// Get batches by student
+export const getBatchesByStudent = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { status } = req.query;
+
+    const query = { students: studentId };
+    if (status) {
+      query.status = status;
+    }
+
+    const batches = await Batch.find(query)
+      .populate("course", "title slug _id thumbnail image description category level duration")
+      .populate("teacher", "fullname email role department _id avatar phone")
+      .populate("students", "fullname email role phone avatar isActive")
+      .sort({ startDate: 1 });
+
+    res.json({
+      success: true,
+      data: batches,
+    });
+  } catch (error) {
+    console.error("Error fetching batches by student:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 // Update batch enrollment count
 export const updateBatchEnrollment = async (req, res) => {
   try {
