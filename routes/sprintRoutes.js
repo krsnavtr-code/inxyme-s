@@ -1,10 +1,10 @@
 import express from 'express';
-import { 
-  createSprint, 
-  getSprintsByCourse, 
+import {
+  createSprint,
+  getSprintsByCourse,
   getMySprints,
-  getSprint, 
-  updateSprint, 
+  getSprint,
+  updateSprint,
   deleteSprint,
   getAllSprints
 } from '../controller/sprintController.js';
@@ -25,7 +25,7 @@ router.get('/lms/:courseId', async (req, res) => {
         options: { sort: { order: 1 } },
         populate: {
           path: 'tasks',
-          select: 'title description type dueDate points status',
+          select: 'title description type dueDate points status questions submissions order',
         },
       })
       .lean();
