@@ -60,6 +60,7 @@ import visitorRoute from "./route/visitor.route.js";
 import magicLinkRoutes from "./routes/magicLinkRoutes.js";
 import reviewRoute, { adminReviewRouter } from "./route/review.route.js";
 import referralRoute from "./route/referral.route.js";
+import activityRoute from "./route/activity.route.js";
 
 import dns from "dns";
 import { createServer } from "http";
@@ -484,6 +485,7 @@ app.use("/api/discussions", discussionRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/careers", careerRoutes);
 app.use("/api/applications", applicationRoutes);
+app.use("/api/activities", activityRoute);
 
 // Admin email routes
 app.use("/api/v1/admin/emails", adminEmailRoutes);
