@@ -21,7 +21,15 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
     });
 
     const career = await newCareer.save();
-    res.json(career);
+    const populatedCareer = await Career.findById(career._id)
+      .populate('courseId', 'title description')
+      .populate('assignedBatches', 'name code')
+      .populate('assignedStudents', 'fullname name email phone')
+      .populate('studentReferrals.student', 'fullname name email phone')
+      .populate('studentReferrals.batch', 'name code')
+      .populate('postedBy', 'fullname name');
+
+    res.json(populatedCareer || career);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -193,7 +201,13 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
       req.params.id,
       { $set: req.body },
       { new: true }
-    );
+    )
+      .populate('courseId', 'title description')
+      .populate('assignedBatches', 'name code')
+      .populate('assignedStudents', 'fullname name email phone')
+      .populate('studentReferrals.student', 'fullname name email phone')
+      .populate('studentReferrals.batch', 'name code')
+      .populate('postedBy', 'fullname name');
 
     res.json(career);
   } catch (err) {
