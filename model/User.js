@@ -181,6 +181,20 @@ const userSchema = new mongoose.Schema(
       min: 0,
       max: 100,
     },
+    referralCode: {
+      type: String,
+      sparse: true,
+      unique: true,
+      trim: true,
+    },
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    upiId: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
