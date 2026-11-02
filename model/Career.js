@@ -31,14 +31,43 @@ const careerSchema = new mongoose.Schema({
     type: String,
     required: false
   },
+  companyName: {
+    type: String,
+    default: "Inxyme Hiring Partner"
+  },
   courseId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course',
     required: true
   },
+  assignedBatches: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Batch'
+  }],
   assignedStudents: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  }],
+  studentReferrals: [{
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    batch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Batch'
+    },
+    status: {
+      type: String,
+      enum: ['Referred', 'Applied', 'Shortlisted', 'Interview Scheduled', 'Offer Received', 'Not Selected'],
+      default: 'Referred'
+    },
+    referredAt: {
+      type: Date,
+      default: Date.now
+    },
+    notes: String,
+    interviewDate: Date
   }],
   status: {
     type: String,
