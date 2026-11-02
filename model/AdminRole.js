@@ -9,6 +9,8 @@ const permissionSchema = new mongoose.Schema(
         "dashboard",
         "lms-management",
         "batches",
+        "career",
+        "activities",
         "test-qa",
         "courses",
         "send-brochure",
