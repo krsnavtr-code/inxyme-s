@@ -78,7 +78,7 @@ router.get('/', async (req, res) => {
 // @access  Supports both session token and direct payload with userId/email
 router.put('/', async (req, res) => {
   try {
-    const { userId, email, fullname, phone, address, upiId, department, designation } = req.body;
+    const { userId, email, fullname, phone, address, upiId, department, designation, resumeUrl, resumeName } = req.body;
 
     let targetId = userId;
     if (!targetId && email) {
@@ -106,6 +106,11 @@ router.put('/', async (req, res) => {
     if (upiId !== undefined) updateData.upiId = upiId.trim();
     if (department !== undefined) updateData.department = department.trim();
     if (designation !== undefined) updateData.designation = designation.trim();
+    if (resumeUrl !== undefined) {
+      updateData.resumeUrl = resumeUrl.trim();
+      updateData.resumeName = (resumeName || 'Resume.pdf').trim();
+      updateData.resumeUpdatedAt = new Date();
+    }
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({

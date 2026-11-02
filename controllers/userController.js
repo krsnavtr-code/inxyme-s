@@ -16,7 +16,7 @@ export const getLmsUsers = async (req, res) => {
   try {
     const users = await User.find(
       {},
-      "_id fullname email role isActive isApproved department phone address upiId referralCode studentId designation createdAt lastLogin enrolledCourses enrolledBatches"
+      "_id fullname email role isActive isApproved department phone address upiId referralCode studentId designation resumeUrl resumeName resumeUpdatedAt createdAt lastLogin enrolledCourses enrolledBatches"
     )
       .populate("enrolledCourses", "title thumbnail slug price status isPublished isActive")
       .populate("enrolledBatches", "batchName batchCode timing")

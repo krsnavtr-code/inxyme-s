@@ -195,6 +195,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    resumeUrl: {
+      type: String,
+      trim: true,
+    },
+    resumeName: {
+      type: String,
+      trim: true,
+    },
+    resumeUpdatedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

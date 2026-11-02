@@ -68,6 +68,24 @@ const imageUpload = multer({
   },
 });
 
+// Configure multer for PDF / Resume uploads
+const pdfUpload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 15 * 1024 * 1024, // 15MB limit for PDFs
+  },
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype === "application/pdf" ||
+      file.originalname.toLowerCase().endsWith(".pdf")
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only PDF documents are allowed."));
+    }
+  },
+});
+
 // Configure multer for video uploads
 const videoUpload = multer({
   storage: storage,
@@ -454,6 +472,44 @@ router.get("/files", protect, async (req, res) => {
       success: false,
       message: "Error getting files",
       error: error.message,
+    });
+  }
+});
+
+// @desc    Upload a PDF (Resume / Document)
+// @route   POST /pdf
+// @access  Public / Student
+router.post("/pdf", pdfUpload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No PDF file uploaded",
+      });
+    }
+
+    const fileUrl = `/api/upload/file/${encodeURIComponent(req.file.filename)}`;
+    const fullUrl = `${req.protocol}://${req.get("host")}${fileUrl}`;
+
+    res.status(201).json({
+      success: true,
+      message: "PDF uploaded successfully",
+      data: {
+        name: req.file.filename,
+        originalName: req.file.originalname,
+        path: fileUrl,
+        url: fullUrl,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        type: "pdf",
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("PDF upload error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error uploading PDF file",
     });
   }
 });
