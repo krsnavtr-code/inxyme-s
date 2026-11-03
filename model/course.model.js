@@ -50,6 +50,38 @@ const faqSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const studentTestimonialSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    platform: {
+      type: String,
+      enum: ["google", "facebook", "x", "instagram"],
+      default: "google",
+    },
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5,
+      default: 5,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    date: {
+      type: String,
+      default: "Recently",
+      trim: true,
+    },
+  },
+  { timestamps: true },
+);
+
 const courseSchema = new mongoose.Schema(
   {
     title: {
@@ -258,6 +290,7 @@ const courseSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    studentTestimonials: [studentTestimonialSchema],
   },
   { timestamps: true },
 );

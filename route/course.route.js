@@ -12,6 +12,10 @@ import {
   generatePdf,
   deletePdf,
   toggleCoursePublish,
+  getCourseTestimonials,
+  addCourseTestimonial,
+  updateCourseTestimonial,
+  deleteCourseTestimonial,
 } from "../controller/course.controller.js";
 import { isAdmin } from "../middleware/admin.js";
 import multer from "multer";
@@ -114,6 +118,12 @@ router.post(
 router.post("/:id/generate-pdf", isAdmin, generatePdf);
 router.delete("/:id/pdf", isAdmin, deletePdf);
 router.patch("/:id/publish", isAdmin, toggleCoursePublish);
+
+// Course Testimonials routes
+router.get("/:id/testimonials", getCourseTestimonials);
+router.post("/:id/testimonials", isAdmin, addCourseTestimonial);
+router.put("/:id/testimonials/:testimonialId", isAdmin, updateCourseTestimonial);
+router.delete("/:id/testimonials/:testimonialId", isAdmin, deleteCourseTestimonial);
 
 // Public routes
 router.get("/", getAllCourses);

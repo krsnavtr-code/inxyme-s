@@ -429,6 +429,7 @@ export const getCourseById = async (req, res) => {
       "image",
       "brochureUrl",
       "brochureGeneratedAt",
+      "studentTestimonials",
     ];
 
     // Add required fields to the select if they're not already included
@@ -466,6 +467,9 @@ export const getCourseById = async (req, res) => {
       whoIsThisFor: ensureArray(course.whoIsThisFor),
       tags: course.tags || [],
       faqs: course.faqs || [],
+      studentTestimonials: Array.isArray(course.studentTestimonials)
+        ? course.studentTestimonials
+        : [],
       curriculum: course.curriculum?.length
         ? course.curriculum
         : [
@@ -625,6 +629,10 @@ export const updateCourse = async (req, res) => {
           }))
         : [],
     };
+
+    if (req.body.studentTestimonials !== undefined && Array.isArray(req.body.studentTestimonials)) {
+      updateData.studentTestimonials = req.body.studentTestimonials;
+    }
 
     // Find and update the course
     const course = await Course.findById(courseId);
@@ -970,6 +978,204 @@ export const deletePdf = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to delete PDF",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Testimonials Controllers
+
+// Get all testimonials for a specific course
+export const getCourseTestimonials = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const condition = /^[0-9a-fA-F]{24}$/.test(id)
+      ? { $or: [{ _id: id }, { slug: id }] }
+      : { slug: id };
+
+    const course = await Course.findOne(condition).select(
+      "title slug studentTestimonials",
+    );
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: course.studentTestimonials || [],
+      courseTitle: course.title,
+      courseSlug: course.slug,
+    });
+  } catch (error) {
+    console.error("Error fetching course testimonials:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching testimonials",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Add a new testimonial to a course
+export const addCourseTestimonial = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, platform, rating, text, date } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Student name is required",
+      });
+    }
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Testimonial text is required",
+      });
+    }
+
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    const validPlatforms = ["google", "facebook", "x", "instagram"];
+    const chosenPlatform = validPlatforms.includes(platform?.toLowerCase())
+      ? platform.toLowerCase()
+      : "google";
+
+    const parsedRating = Math.min(5, Math.max(1, Number(rating) || 5));
+
+    const newTestimonial = {
+      name: name.trim(),
+      platform: chosenPlatform,
+      rating: parsedRating,
+      text: text.trim(),
+      date: (date && date.trim()) || "Recently",
+    };
+
+    if (!Array.isArray(course.studentTestimonials)) {
+      course.studentTestimonials = [];
+    }
+
+    course.studentTestimonials.push(newTestimonial);
+    await course.save();
+
+    const createdTestimonial =
+      course.studentTestimonials[course.studentTestimonials.length - 1];
+
+    res.status(201).json({
+      success: true,
+      message: "Testimonial added successfully",
+      testimonial: createdTestimonial,
+      data: course.studentTestimonials,
+    });
+  } catch (error) {
+    console.error("Error adding course testimonial:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error adding testimonial",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Update an existing testimonial of a course
+export const updateCourseTestimonial = async (req, res) => {
+  try {
+    const { id, testimonialId } = req.params;
+    const { name, platform, rating, text, date } = req.body;
+
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    const testimonial = course.studentTestimonials?.id(testimonialId);
+    if (!testimonial) {
+      return res.status(404).json({
+        success: false,
+        message: "Testimonial not found",
+      });
+    }
+
+    if (name !== undefined) testimonial.name = name.trim();
+    if (platform !== undefined) {
+      const validPlatforms = ["google", "facebook", "x", "instagram"];
+      if (validPlatforms.includes(platform?.toLowerCase())) {
+        testimonial.platform = platform.toLowerCase();
+      }
+    }
+    if (rating !== undefined) {
+      testimonial.rating = Math.min(5, Math.max(1, Number(rating) || 5));
+    }
+    if (text !== undefined) testimonial.text = text.trim();
+    if (date !== undefined) testimonial.date = date.trim() || "Recently";
+
+    await course.save();
+
+    res.json({
+      success: true,
+      message: "Testimonial updated successfully",
+      testimonial,
+      data: course.studentTestimonials,
+    });
+  } catch (error) {
+    console.error("Error updating course testimonial:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error updating testimonial",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Delete a testimonial from a course
+export const deleteCourseTestimonial = async (req, res) => {
+  try {
+    const { id, testimonialId } = req.params;
+
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    const testimonial = course.studentTestimonials?.id(testimonialId);
+    if (!testimonial) {
+      return res.status(404).json({
+        success: false,
+        message: "Testimonial not found",
+      });
+    }
+
+    course.studentTestimonials.pull({ _id: testimonialId });
+    await course.save();
+
+    res.json({
+      success: true,
+      message: "Testimonial deleted successfully",
+      data: course.studentTestimonials,
+    });
+  } catch (error) {
+    console.error("Error deleting course testimonial:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error deleting testimonial",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
