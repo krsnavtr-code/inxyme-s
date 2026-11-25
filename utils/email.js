@@ -54,6 +54,7 @@ transporter.verify(function (error, success) {
  */
 export const sendEmail = async ({
   to,
+  cc = "",
   subject,
   text = "",
   html = "",
@@ -91,6 +92,7 @@ export const sendEmail = async ({
     const mailOptions = {
       from: `"${process.env.EMAIL_FROM_NAME || "Inxyme"}" <${fromEmail}>`,
       to: to,
+      ...(cc ? { cc } : {}),
       subject: subject,
       text: text,
       html: html, // Don't auto-convert text to HTML, let the caller decide
