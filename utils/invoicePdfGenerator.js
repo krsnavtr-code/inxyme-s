@@ -301,6 +301,10 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
       ? { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca' }
       : { bg: '#fffbeb', text: '#b45309', border: '#fde68a' };
 
+  const emailLogoSrc = overrides.useCidLogo
+    ? 'cid:inxyme-logo'
+    : 'https://www.inxyme.com/images/inxyme-logo.png';
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -310,14 +314,23 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
 </head>
 <body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#111827;">
   <div style="max-width:640px;margin:24px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(15,23,42,0.06);">
-    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:24px 28px;color:#ffffff;">
+    <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);padding:20px 28px;color:#ffffff;border-bottom:3px solid #f47c26;">
       <table style="width:100%;border-collapse:collapse;">
         <tr>
-          <td>
-            <div style="font-size:22px;font-weight:800;letter-spacing:0.4px;color:#ffffff;">Inxyme</div>
-            <div style="font-size:12px;color:#c7d2fe;margin-top:2px;">Official Payment Receipt &amp; Tax Invoice</div>
+          <td style="vertical-align:middle;">
+            <table style="border-collapse:collapse;">
+              <tr>
+                <td style="background:#ffffff;border-radius:8px;padding:6px 10px;">
+                  <img src="${emailLogoSrc}" alt="Inxyme" height="36" style="display:block;height:36px;width:auto;" />
+                </td>
+                <td style="padding-left:14px;vertical-align:middle;">
+                  <div style="font-size:18px;font-weight:800;letter-spacing:0.3px;color:#ffffff;">Inxyme</div>
+                  <div style="font-size:12px;color:#bfdbfe;margin-top:2px;">Official Payment Receipt &amp; Tax Invoice</div>
+                </td>
+              </tr>
+            </table>
           </td>
-          <td style="text-align:right;vertical-align:top;">
+          <td style="text-align:right;vertical-align:middle;">
             <span style="display:inline-block;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:700;background-color:${statusColors.bg};color:${statusColors.text};border:1px solid ${statusColors.border};">
               ${escapeHtml(statusText)}
             </span>
@@ -426,9 +439,9 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
   const contentWidth = width - margin * 2;
 
   const colors = {
-    indigoDark: rgb(0.118, 0.106, 0.294), // #1e1b4b
-    indigo: rgb(0.31, 0.275, 0.898), // #4f46e5
-    redAccent: rgb(0.863, 0.149, 0.149), // brand red accent
+    indigoDark: rgb(0.059, 0.145, 0.345), // deep brand navy-blue
+    indigo: rgb(0, 0.408, 0.851), // brand blue #0068D9
+    redAccent: rgb(0.957, 0.486, 0.149), // brand orange #F47C26
     slate900: rgb(0.059, 0.09, 0.165),
     slate700: rgb(0.2, 0.255, 0.333),
     slate500: rgb(0.392, 0.455, 0.545),
@@ -443,13 +456,13 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     white: rgb(1, 1, 1),
   };
 
-  // Top decorative bands
+  // Top decorative bands (brand blue + orange accent)
   page.drawRectangle({
     x: 0,
     y: height - 10,
     width,
     height: 10,
-    color: colors.indigoDark,
+    color: colors.indigo,
   });
   page.drawRectangle({
     x: 0,
@@ -461,7 +474,7 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
 
   let y = height - 42;
 
-  // Header Left: Optional Logo + Company Name
+  // Header Left: Official Inxyme Logo + Company Details
   let logoOffsetX = margin;
   const logoCandidates = [
     path.join(__dirname, '../public/images/inxyme-logo.png'),
@@ -472,16 +485,16 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     try {
       const logoBytes = fs.readFileSync(logoPath);
       const logoImg = await pdfDoc.embedPng(logoBytes);
-      const logoSize = 36;
+      const logoSize = 46;
       const aspect = logoImg.width / Math.max(1, logoImg.height);
       const drawW = logoSize * aspect;
       page.drawImage(logoImg, {
         x: margin,
-        y: y - logoSize + 8,
+        y: y - logoSize + 10,
         width: drawW,
         height: logoSize,
       });
-      logoOffsetX = margin + drawW + 12;
+      logoOffsetX = margin + drawW + 14;
     } catch (logoErr) {
       console.warn('Could not embed Inxyme logo in invoice PDF:', logoErr.message);
     }

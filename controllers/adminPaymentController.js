@@ -528,10 +528,14 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
       });
     }
 
+    const logoPath = path.join(__dirname, '..', 'public', 'images', 'inxyme-logo.png');
+    const hasLogo = fs.existsSync(logoPath);
+
     const emailContent = buildInvoiceEmailContent(payment, {
       to: targetEmail,
       subject,
       writtenMessage,
+      useCidLogo: hasLogo,
     });
 
     const pdfBuffer = await generatePaymentInvoicePdfBuffer(payment);
@@ -548,6 +552,21 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
     let emailStatus = 'sent';
     let emailError = null;
 
+    const mailAttachments = [
+      {
+        filename: pdfFilename,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+    ];
+    if (hasLogo) {
+      mailAttachments.push({
+        filename: 'inxyme-logo.png',
+        path: logoPath,
+        cid: 'inxyme-logo',
+      });
+    }
+
     try {
       await sendEmail({
         to: targetEmail,
@@ -555,13 +574,7 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
         subject: emailContent.subject,
         text: emailContent.text,
         html: emailContent.html,
-        attachments: [
-          {
-            filename: pdfFilename,
-            content: pdfBuffer,
-            contentType: 'application/pdf',
-          },
-        ],
+        attachments: mailAttachments,
       });
     } catch (sendErr) {
       emailStatus = 'failed';
