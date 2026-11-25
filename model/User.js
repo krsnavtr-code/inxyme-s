@@ -206,6 +206,24 @@ const userSchema = new mongoose.Schema(
     resumeUpdatedAt: {
       type: Date,
     },
+    lmsInviteSent: {
+      type: Boolean,
+      default: false,
+    },
+    lmsInviteSentAt: {
+      type: Date,
+      default: null,
+    },
+    lmsInviteSentCount: {
+      type: Number,
+      default: 0,
+    },
+    lmsInviteLastSentTo: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
   },
   {
     timestamps: true,

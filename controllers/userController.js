@@ -1,4 +1,6 @@
 import User from "../model/User.js";
+import { buildLmsInviteEmailContent } from "../utils/invoicePdfGenerator.js";
+import { sendBrandedEmailWithRecord } from "../utils/brandedEmailSender.js";
 
 // Get all users
 export const getAllUsers = async (req, res) => {
@@ -206,6 +208,127 @@ export const updateUserDiscount = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error updating discount",
+    });
+  }
+};
+
+// Get LMS invite email preview for a user
+export const getLmsInvitePreview = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+      .select("-password")
+      .populate("enrolledCourses", "title thumbnail slug price");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const { lmsLoginUrl, courseNames } = req.query;
+    const preview = buildLmsInviteEmailContent(user, {
+      lmsLoginUrl,
+      courseNames,
+    });
+
+    res.status(200).json({
+      success: true,
+      preview,
+      user,
+    });
+  } catch (error) {
+    console.error("Error generating LMS invite email preview:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to prepare LMS invite email preview",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Send LMS access welcome/invite email to a user
+export const sendLmsInviteEmail = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+      .select("-password")
+      .populate("enrolledCourses", "title thumbnail slug price");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const {
+      to,
+      cc = "",
+      subject,
+      writtenMessage,
+      lmsLoginUrl = "",
+      courseNames = "",
+      autoApproveLms = true,
+    } = req.body;
+
+    const targetEmail = (to || user.email || "").trim().toLowerCase();
+    if (!targetEmail || !/\S+@\S+\.\S+/.test(targetEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid recipient email address is required",
+      });
+    }
+
+    if (lmsLoginUrl && !/^https?:\/\/\S+$/i.test(String(lmsLoginUrl).trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "LMS login URL must be a valid http:// or https:// URL",
+      });
+    }
+
+    const emailContent = await sendBrandedEmailWithRecord({
+      to: targetEmail,
+      cc,
+      studentName: user.fullname,
+      courseName: courseNames || (user.enrolledCourses || []).map((c) => c?.title).filter(Boolean).join(", "),
+      templateUsed: "lms_invite",
+      adminUserId: req.user._id,
+      buildContent: (hasLogo) =>
+        buildLmsInviteEmailContent(user, {
+          to: targetEmail,
+          subject,
+          writtenMessage,
+          lmsLoginUrl,
+          courseNames,
+          useCidLogo: hasLogo,
+        }),
+    });
+
+    user.lmsInviteSent = true;
+    user.lmsInviteSentAt = new Date();
+    user.lmsInviteSentCount = (user.lmsInviteSentCount || 0) + 1;
+    user.lmsInviteLastSentTo = targetEmail;
+    if (autoApproveLms && !user.isApproved) {
+      user.isApproved = true;
+    }
+    await user.save();
+
+    const updatedUser = await User.findById(user._id)
+      .select("-password")
+      .populate("enrolledCourses", "title thumbnail slug price");
+
+    res.status(200).json({
+      success: true,
+      message: `LMS invite email sent successfully to ${targetEmail}`,
+      data: updatedUser,
+      subject: emailContent.subject,
+    });
+  } catch (error) {
+    console.error("Error sending LMS invite email:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to send LMS invite email",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };

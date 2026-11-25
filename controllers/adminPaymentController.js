@@ -9,9 +9,8 @@ import DirectPayment from '../model/directPayment.model.js';
 import User from '../model/User.js';
 import Course from '../model/course.model.js';
 import Candidate from '../model/Candidate.js';
-import EmailRecord from '../model/EmailRecord.js';
 import { validationResult } from 'express-validator';
-import { sendEmail } from '../utils/email.js';
+import { sendBrandedEmailWithRecord } from '../utils/brandedEmailSender.js';
 import {
   buildInvoiceEmailContent,
   buildPendingPaymentAlertEmailContent,
@@ -639,8 +638,6 @@ export const getPaymentInvoicePreview = async (req, res) => {
   }
 };
 
-const EMAIL_LOGO_PATH = path.join(__dirname, '..', 'public', 'images', 'inxyme-logo.png');
-
 /**
  * Shared helper to dispatch a branded payment email (optionally with Invoice PDF + inline CID logo)
  * and record the result in EmailRecord.
@@ -654,10 +651,7 @@ const dispatchPaymentEmailWithLogo = async ({
   templateUsed,
   adminUserId,
 }) => {
-  const hasLogo = fs.existsSync(EMAIL_LOGO_PATH);
-  const emailContent = buildContent(hasLogo);
-
-  const mailAttachments = [];
+  const extraAttachments = [];
   const recordAttachments = [];
 
   if (includeInvoicePdf) {
@@ -671,7 +665,7 @@ const dispatchPaymentEmailWithLogo = async ({
     const savedPdfPath = path.join(invoicesDir, pdfFilename);
     fs.writeFileSync(savedPdfPath, pdfBuffer);
 
-    mailAttachments.push({
+    extraAttachments.push({
       filename: pdfFilename,
       content: pdfBuffer,
       contentType: 'application/pdf',
@@ -684,51 +678,17 @@ const dispatchPaymentEmailWithLogo = async ({
     });
   }
 
-  if (hasLogo) {
-    mailAttachments.push({
-      filename: 'inxyme-logo.png',
-      path: EMAIL_LOGO_PATH,
-      cid: 'inxyme-logo',
-    });
-  }
-
-  let emailStatus = 'sent';
-  let emailError = null;
-
-  try {
-    await sendEmail({
-      to: targetEmail,
-      cc: cc ? String(cc).trim() : '',
-      subject: emailContent.subject,
-      text: emailContent.text,
-      html: emailContent.html,
-      attachments: mailAttachments,
-    });
-  } catch (sendErr) {
-    emailStatus = 'failed';
-    emailError = sendErr.message;
-    throw sendErr;
-  } finally {
-    try {
-      await EmailRecord.create({
-        to: targetEmail,
-        subject: emailContent.subject,
-        message: emailContent.html,
-        studentName: payment.name,
-        courseName: payment.course,
-        templateUsed,
-        attachments: recordAttachments,
-        status: emailStatus,
-        error: emailError,
-        sentBy: adminUserId,
-        sentAt: new Date(),
-      });
-    } catch (recordErr) {
-      console.warn(`Could not save EmailRecord for ${templateUsed}:`, recordErr.message);
-    }
-  }
-
-  return emailContent;
+  return sendBrandedEmailWithRecord({
+    to: targetEmail,
+    cc,
+    buildContent,
+    studentName: payment.name,
+    courseName: payment.course,
+    templateUsed,
+    adminUserId,
+    extraAttachments,
+    recordAttachments,
+  });
 };
 
 // @desc    Send Payment Invoice email with attached PDF receipt

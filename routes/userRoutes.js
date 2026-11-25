@@ -9,6 +9,8 @@ import {
   updateUserStatus,
   updateUserLMSStatus,
   updateUserDiscount,
+  getLmsInvitePreview,
+  sendLmsInviteEmail,
   getLmsUsers,
 } from "../controllers/userController.js";
 const router = express.Router();
@@ -28,6 +30,12 @@ router
 router
   .route("/:id/discount")
   .put(protect, authorize("admin"), updateUserDiscount);
+router
+  .route("/:id/lms-invite-preview")
+  .get(protect, authorize("admin"), getLmsInvitePreview);
+router
+  .route("/:id/send-lms-invite")
+  .post(protect, authorize("admin"), sendLmsInviteEmail);
 router.route("/:id").delete(protect, authorize("admin"), deleteUser);
 
 export default router;

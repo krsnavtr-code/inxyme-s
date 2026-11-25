@@ -644,6 +644,147 @@ export const buildPendingPaymentAlertEmailContent = (payment, overrides = {}) =>
 };
 
 /**
+ * Build default written English email & branded HTML email preview for Student LMS Access Invite.
+ */
+export const buildLmsInviteEmailContent = (user, overrides = {}) => {
+  const studentName = (user?.fullname || 'Student').trim();
+  const registeredEmail = (user?.email || '').trim();
+  const targetEmail = (overrides.to || registeredEmail).trim();
+
+  const enrolledCourseTitles = (
+    Array.isArray(user?.enrolledCourses) ? user.enrolledCourses : []
+  )
+    .map((c) => (typeof c === 'object' ? c?.title : ''))
+    .filter(Boolean);
+
+  const courseSummary =
+    (overrides.courseNames || '').trim() ||
+    (enrolledCourseTitles.length > 0 ? enrolledCourseTitles.join(', ') : '');
+
+  const defaultLmsUrl =
+    process.env.LMS_LOGIN_URL ||
+    process.env.CLIENT_LOGIN_URL ||
+    'https://www.inxyme.com/login';
+  const lmsLoginUrl = normalizeHttpUrl(overrides.lmsLoginUrl || defaultLmsUrl) || 'https://www.inxyme.com/login';
+
+  const primaryCourse = enrolledCourseTitles[0] || '';
+  const defaultSubject = primaryCourse
+    ? `Welcome to Inxyme LMS – Your Access to ${primaryCourse} is Live!`
+    : 'Your Inxyme LMS Access is Ready – Log In & Explore Your Course!';
+
+  const courseBullets =
+    enrolledCourseTitles.length > 0
+      ? [
+          '',
+          'Your Enrolled Course(s) Unlocked on LMS:',
+          ...enrolledCourseTitles.map((title) => `• ${title}`),
+        ]
+      : courseSummary
+      ? ['', `Assigned Course / Program: ${courseSummary}`]
+      : [
+          '',
+          'Your learning dashboard is ready with access to your course modules, video lessons, study resources, and progress tracking.',
+        ];
+
+  const defaultWrittenMessage = [
+    `Dear ${studentName},`,
+    '',
+    'Congratulations and a warm welcome to Inxyme!',
+    '',
+    'We are pleased to let you know that your Learning Management System (LMS) access has been activated and is now ready for you. You can log in anytime to explore your course curriculum, watch sessions, access study materials, and track your learning progress.',
+    ...courseBullets,
+    '',
+    'How to Log In to Your LMS Account:',
+    `• LMS Login Portal: ${lmsLoginUrl}`,
+    `• Login ID (Registered Email): ${registeredEmail}`,
+    '• Password: Please log in using the same email and password credentials that you created when registering on Inxyme.',
+    '',
+    '(Tip: If you do not remember your password, simply click "Forgot Password" on the login page to reset it quickly using your registered email.)',
+    '',
+    'We encourage you to log in today and explore your course dashboard. If you need any assistance getting started, feel free to reply to this email or contact our student support team.',
+    '',
+    'Wishing you an enriching and successful learning journey!',
+    '',
+    'Warm regards,',
+    'Academic & Student Support Team',
+    'Inxyme (www.inxyme.com)',
+  ].join('\n');
+
+  const subject = (overrides.subject || defaultSubject).trim();
+  const writtenMessage = (
+    overrides.writtenMessage !== undefined
+      ? overrides.writtenMessage
+      : defaultWrittenMessage
+  ).trim();
+
+  const messageHtmlBody = escapeHtml(writtenMessage).replace(/\r?\n/g, '<br />');
+
+  const innerBodyHtml = `
+      <div style="font-size:14px;line-height:1.7;color:#1f2937;margin-bottom:24px;">
+        ${messageHtmlBody}
+      </div>
+
+      <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#0068D9;margin-bottom:12px;">
+          Your LMS Access &amp; Login Credentials
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr>
+            <td style="padding:6px 0;color:#64748b;width:42%;">Student Name</td>
+            <td style="padding:6px 0;font-weight:600;color:#0f172a;text-align:right;">${escapeHtml(studentName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#64748b;">Registered Login Email</td>
+            <td style="padding:6px 0;font-weight:700;color:#0f172a;text-align:right;">${escapeHtml(registeredEmail)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#64748b;">Password</td>
+            <td style="padding:6px 0;color:#334155;text-align:right;">Same password used at Inxyme registration</td>
+          </tr>
+          ${
+            courseSummary
+              ? `<tr>
+                  <td style="padding:6px 0;color:#64748b;vertical-align:top;">Active Course(s)</td>
+                  <td style="padding:6px 0;font-weight:600;color:#047857;text-align:right;">${escapeHtml(courseSummary)}</td>
+                </tr>`
+              : ''
+          }
+          <tr>
+            <td style="padding:6px 0;color:#64748b;">LMS Portal</td>
+            <td style="padding:6px 0;font-weight:600;color:#0068D9;text-align:right;">${escapeHtml(lmsLoginUrl)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="text-align:center;margin:24px 0 8px;">
+        <a href="${escapeHtml(lmsLoginUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#0068D9;color:#ffffff;font-weight:700;font-size:14px;padding:13px 28px;border-radius:8px;text-decoration:none;border-bottom:3px solid #f47c26;">
+          Log In &amp; Explore Your Course
+        </a>
+      </div>`;
+
+  const html = renderBrandedEmailShell({
+    subject,
+    subtitle: 'Learning Management System (LMS) Welcome',
+    badgeText: 'LMS ACCESS ACTIVE',
+    badgeColors: { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0' },
+    innerBodyHtml,
+    useCidLogo: Boolean(overrides.useCidLogo),
+  });
+
+  return {
+    to: targetEmail,
+    registeredEmail,
+    subject,
+    writtenMessage,
+    text: writtenMessage,
+    html,
+    lmsLoginUrl,
+    enrolledCourseTitles,
+    courseSummary,
+  };
+};
+
+/**
  * Generate a crisp, executive A4 Tax Invoice / Payment Receipt PDF buffer via pdf-lib.
  */
 export const generatePaymentInvoicePdfBuffer = async (payment) => {
