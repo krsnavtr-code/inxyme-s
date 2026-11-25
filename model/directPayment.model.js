@@ -178,6 +178,37 @@ const directPaymentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    pendingAlertSent: {
+      type: Boolean,
+      default: false,
+    },
+    pendingAlertSentAt: {
+      type: Date,
+      default: null,
+    },
+    pendingAlertSentCount: {
+      type: Number,
+      default: 0,
+    },
+    pendingAlertLastSentTo: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: '',
+    },
+    pendingAlertEmailSubject: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    pendingAlertEmailMessage: {
+      type: String,
+      default: '',
+    },
+    pendingAlertLastDueDate: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

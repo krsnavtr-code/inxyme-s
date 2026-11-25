@@ -14,6 +14,7 @@ import { validationResult } from 'express-validator';
 import { sendEmail } from '../utils/email.js';
 import {
   buildInvoiceEmailContent,
+  buildPendingPaymentAlertEmailContent,
   computeGstBreakup,
   generatePaymentInvoicePdfBuffer,
   getInvoiceFilename,
@@ -638,6 +639,98 @@ export const getPaymentInvoicePreview = async (req, res) => {
   }
 };
 
+const EMAIL_LOGO_PATH = path.join(__dirname, '..', 'public', 'images', 'inxyme-logo.png');
+
+/**
+ * Shared helper to dispatch a branded payment email (optionally with Invoice PDF + inline CID logo)
+ * and record the result in EmailRecord.
+ */
+const dispatchPaymentEmailWithLogo = async ({
+  payment,
+  targetEmail,
+  cc = '',
+  buildContent,
+  includeInvoicePdf = false,
+  templateUsed,
+  adminUserId,
+}) => {
+  const hasLogo = fs.existsSync(EMAIL_LOGO_PATH);
+  const emailContent = buildContent(hasLogo);
+
+  const mailAttachments = [];
+  const recordAttachments = [];
+
+  if (includeInvoicePdf) {
+    const pdfBuffer = await generatePaymentInvoicePdfBuffer(payment);
+    const pdfFilename = getInvoiceFilename(payment);
+
+    const invoicesDir = path.join(__dirname, '..', 'public', 'pdfs', 'invoices');
+    if (!fs.existsSync(invoicesDir)) {
+      fs.mkdirSync(invoicesDir, { recursive: true });
+    }
+    const savedPdfPath = path.join(invoicesDir, pdfFilename);
+    fs.writeFileSync(savedPdfPath, pdfBuffer);
+
+    mailAttachments.push({
+      filename: pdfFilename,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    });
+    recordAttachments.push({
+      name: pdfFilename,
+      path: `/pdfs/invoices/${pdfFilename}`,
+      type: 'pdf',
+      size: pdfBuffer.length,
+    });
+  }
+
+  if (hasLogo) {
+    mailAttachments.push({
+      filename: 'inxyme-logo.png',
+      path: EMAIL_LOGO_PATH,
+      cid: 'inxyme-logo',
+    });
+  }
+
+  let emailStatus = 'sent';
+  let emailError = null;
+
+  try {
+    await sendEmail({
+      to: targetEmail,
+      cc: cc ? String(cc).trim() : '',
+      subject: emailContent.subject,
+      text: emailContent.text,
+      html: emailContent.html,
+      attachments: mailAttachments,
+    });
+  } catch (sendErr) {
+    emailStatus = 'failed';
+    emailError = sendErr.message;
+    throw sendErr;
+  } finally {
+    try {
+      await EmailRecord.create({
+        to: targetEmail,
+        subject: emailContent.subject,
+        message: emailContent.html,
+        studentName: payment.name,
+        courseName: payment.course,
+        templateUsed,
+        attachments: recordAttachments,
+        status: emailStatus,
+        error: emailError,
+        sentBy: adminUserId,
+        sentAt: new Date(),
+      });
+    } catch (recordErr) {
+      console.warn(`Could not save EmailRecord for ${templateUsed}:`, recordErr.message);
+    }
+  }
+
+  return emailContent;
+};
+
 // @desc    Send Payment Invoice email with attached PDF receipt
 // @route   POST /api/admin/payments/:id/send-invoice
 // @access  Private/Admin
@@ -664,84 +757,21 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
       });
     }
 
-    const logoPath = path.join(__dirname, '..', 'public', 'images', 'inxyme-logo.png');
-    const hasLogo = fs.existsSync(logoPath);
-
-    const emailContent = buildInvoiceEmailContent(payment, {
-      to: targetEmail,
-      subject,
-      writtenMessage,
-      useCidLogo: hasLogo,
-    });
-
-    const pdfBuffer = await generatePaymentInvoicePdfBuffer(payment);
-    const pdfFilename = getInvoiceFilename(payment);
-
-    // Save a copy of the invoice PDF under public/pdfs/invoices for EmailRecord link access
-    const invoicesDir = path.join(__dirname, '..', 'public', 'pdfs', 'invoices');
-    if (!fs.existsSync(invoicesDir)) {
-      fs.mkdirSync(invoicesDir, { recursive: true });
-    }
-    const savedPdfPath = path.join(invoicesDir, pdfFilename);
-    fs.writeFileSync(savedPdfPath, pdfBuffer);
-
-    let emailStatus = 'sent';
-    let emailError = null;
-
-    const mailAttachments = [
-      {
-        filename: pdfFilename,
-        content: pdfBuffer,
-        contentType: 'application/pdf',
-      },
-    ];
-    if (hasLogo) {
-      mailAttachments.push({
-        filename: 'inxyme-logo.png',
-        path: logoPath,
-        cid: 'inxyme-logo',
-      });
-    }
-
-    try {
-      await sendEmail({
-        to: targetEmail,
-        cc: cc ? String(cc).trim() : '',
-        subject: emailContent.subject,
-        text: emailContent.text,
-        html: emailContent.html,
-        attachments: mailAttachments,
-      });
-    } catch (sendErr) {
-      emailStatus = 'failed';
-      emailError = sendErr.message;
-      throw sendErr;
-    } finally {
-      try {
-        await EmailRecord.create({
+    const emailContent = await dispatchPaymentEmailWithLogo({
+      payment,
+      targetEmail,
+      cc,
+      includeInvoicePdf: true,
+      templateUsed: 'payment_invoice',
+      adminUserId: req.user._id,
+      buildContent: (hasLogo) =>
+        buildInvoiceEmailContent(payment, {
           to: targetEmail,
-          subject: emailContent.subject,
-          message: emailContent.html,
-          studentName: payment.name,
-          courseName: payment.course,
-          templateUsed: 'payment_invoice',
-          attachments: [
-            {
-              name: pdfFilename,
-              path: `/pdfs/invoices/${pdfFilename}`,
-              type: 'pdf',
-              size: pdfBuffer.length,
-            },
-          ],
-          status: emailStatus,
-          error: emailError,
-          sentBy: req.user._id,
-          sentAt: new Date(),
-        });
-      } catch (recordErr) {
-        console.warn('Could not save EmailRecord for invoice mail:', recordErr.message);
-      }
-    }
+          subject,
+          writtenMessage,
+          useCidLogo: hasLogo,
+        }),
+    });
 
     payment.invoiceSent = true;
     payment.invoiceSentAt = new Date();
@@ -765,6 +795,137 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to send payment invoice email',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// @desc    Get default written mail & HTML preview for Pending Payment Alert email
+// @route   GET /api/admin/payments/:id/pending-alert-preview
+// @access  Private/Admin
+export const getPendingPaymentAlertPreview = async (req, res) => {
+  try {
+    const payment = await DirectPayment.findById(req.params.id)
+      .populate('userId', 'fullname email phone address studentId discount')
+      .populate('courseId', 'title price');
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found',
+      });
+    }
+
+    await ensurePaymentInvoiceNumber(payment);
+
+    const { pendingAmount, dueDate, paymentLink, attachInvoicePdf } = req.query;
+    const preview = buildPendingPaymentAlertEmailContent(payment, {
+      pendingAmount,
+      dueDate,
+      paymentLink,
+      attachInvoicePdf: attachInvoicePdf === 'true',
+    });
+
+    res.status(200).json({
+      success: true,
+      preview,
+      payment,
+    });
+  } catch (error) {
+    console.error('Error generating pending alert preview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load pending payment alert preview',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// @desc    Send Pending Payment Alert reminder email to student
+// @route   POST /api/admin/payments/:id/send-pending-alert
+// @access  Private/Admin
+export const sendPendingPaymentAlertEmail = async (req, res) => {
+  try {
+    const payment = await DirectPayment.findById(req.params.id);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found',
+      });
+    }
+
+    await ensurePaymentInvoiceNumber(payment);
+
+    const {
+      to,
+      cc = '',
+      subject,
+      writtenMessage,
+      pendingAmount,
+      dueDate = '',
+      paymentLink = '',
+      attachInvoicePdf = false,
+    } = req.body;
+
+    const targetEmail = (to || payment.email || '').trim().toLowerCase();
+    if (!targetEmail || !/\S+@\S+\.\S+/.test(targetEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid recipient email address is required',
+      });
+    }
+
+    if (paymentLink && !/^https?:\/\/\S+$/i.test(String(paymentLink).trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment link must be a valid http:// or https:// URL',
+      });
+    }
+
+    const emailContent = await dispatchPaymentEmailWithLogo({
+      payment,
+      targetEmail,
+      cc,
+      includeInvoicePdf: Boolean(attachInvoicePdf),
+      templateUsed: 'pending_payment_alert',
+      adminUserId: req.user._id,
+      buildContent: (hasLogo) =>
+        buildPendingPaymentAlertEmailContent(payment, {
+          to: targetEmail,
+          subject,
+          writtenMessage,
+          pendingAmount,
+          dueDate,
+          paymentLink,
+          attachInvoicePdf: Boolean(attachInvoicePdf),
+          useCidLogo: hasLogo,
+        }),
+    });
+
+    payment.pendingAlertSent = true;
+    payment.pendingAlertSentAt = new Date();
+    payment.pendingAlertSentCount = (payment.pendingAlertSentCount || 0) + 1;
+    payment.pendingAlertLastSentTo = targetEmail;
+    payment.pendingAlertEmailSubject = emailContent.subject;
+    payment.pendingAlertEmailMessage = emailContent.writtenMessage;
+    payment.pendingAlertLastDueDate = dueDate ? new Date(dueDate) : null;
+    await payment.save();
+
+    const populatedPayment = await DirectPayment.findById(payment._id)
+      .populate('userId', 'fullname email phone address studentId role discount')
+      .populate('courseId', 'title price originalPrice isFree slug');
+
+    res.status(200).json({
+      success: true,
+      message: `Pending payment alert sent successfully to ${targetEmail}`,
+      payment: populatedPayment,
+    });
+  } catch (error) {
+    console.error('Error sending pending payment alert email:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send pending payment alert email',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }

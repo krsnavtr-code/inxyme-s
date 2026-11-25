@@ -307,45 +307,7 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
       ? { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca' }
       : { bg: '#fffbeb', text: '#b45309', border: '#fde68a' };
 
-  const emailLogoSrc = overrides.useCidLogo
-    ? 'cid:inxyme-logo'
-    : 'https://www.inxyme.com/images/inxyme-logo.png';
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(subject)}</title>
-</head>
-<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#111827;">
-  <div style="max-width:640px;margin:24px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(15,23,42,0.06);">
-    <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);padding:20px 28px;color:#ffffff;border-bottom:3px solid #f47c26;">
-      <table style="width:100%;border-collapse:collapse;">
-        <tr>
-          <td style="vertical-align:middle;">
-            <table style="border-collapse:collapse;">
-              <tr>
-                <td style="background:#ffffff;border-radius:8px;padding:6px 10px;">
-                  <img src="${emailLogoSrc}" alt="Inxyme" height="36" style="display:block;height:36px;width:auto;" />
-                </td>
-                <td style="padding-left:14px;vertical-align:middle;">
-                  <div style="font-size:18px;font-weight:800;letter-spacing:0.3px;color:#ffffff;">Inxyme</div>
-                  <div style="font-size:12px;color:#bfdbfe;margin-top:2px;">Official Payment Receipt &amp; Tax Invoice</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-          <td style="text-align:right;vertical-align:middle;">
-            <span style="display:inline-block;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:700;background-color:${statusColors.bg};color:${statusColors.text};border:1px solid ${statusColors.border};">
-              ${escapeHtml(statusText)}
-            </span>
-          </td>
-        </tr>
-      </table>
-    </div>
-
-    <div style="padding:28px;">
+  const innerBodyHtml = `
       <div style="font-size:14px;line-height:1.7;color:#1f2937;margin-bottom:24px;">
         ${messageHtmlBody}
       </div>
@@ -416,7 +378,79 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
 
       <div style="background-color:#eef2ff;border-left:4px solid #4f46e5;padding:12px 14px;border-radius:6px;font-size:12px;color:#312e81;">
         <strong>Attachment Included:</strong> Your Tax Invoice PDF (<code>${escapeHtml(getInvoiceFilename(payment))}</code>) is attached to this email.
-      </div>
+      </div>`;
+
+  const html = renderBrandedEmailShell({
+    subject,
+    subtitle: 'Official Payment Receipt &amp; Tax Invoice',
+    badgeText: statusText,
+    badgeColors: statusColors,
+    innerBodyHtml,
+    useCidLogo: Boolean(overrides.useCidLogo),
+  });
+
+  return {
+    to: (overrides.to || payment.email || '').trim(),
+    subject,
+    writtenMessage,
+    text: writtenMessage,
+    html,
+    gstBreakup: gst,
+    pdfFilename: getInvoiceFilename(payment),
+  };
+};
+
+/**
+ * Render shared Inxyme branded HTML email shell (used by both Invoice Receipt & Pending Payment Alert mails).
+ */
+const renderBrandedEmailShell = ({
+  subject,
+  subtitle,
+  badgeText,
+  badgeColors,
+  innerBodyHtml,
+  useCidLogo = false,
+}) => {
+  const emailLogoSrc = useCidLogo
+    ? 'cid:inxyme-logo'
+    : 'https://www.inxyme.com/images/inxyme-logo.png';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#111827;">
+  <div style="max-width:640px;margin:24px auto;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(15,23,42,0.06);">
+    <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);padding:20px 28px;color:#ffffff;border-bottom:3px solid #f47c26;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="vertical-align:middle;">
+            <table style="border-collapse:collapse;">
+              <tr>
+                <td style="background:#ffffff;border-radius:8px;padding:6px 10px;">
+                  <img src="${emailLogoSrc}" alt="Inxyme" height="36" style="display:block;height:36px;width:auto;" />
+                </td>
+                <td style="padding-left:14px;vertical-align:middle;">
+                  <div style="font-size:18px;font-weight:800;letter-spacing:0.3px;color:#ffffff;">Inxyme</div>
+                  <div style="font-size:12px;color:#bfdbfe;margin-top:2px;">${subtitle}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td style="text-align:right;vertical-align:middle;">
+            <span style="display:inline-block;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:700;background-color:${badgeColors.bg};color:${badgeColors.text};border:1px solid ${badgeColors.border};">
+              ${escapeHtml(badgeText)}
+            </span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="padding:28px;">
+      ${innerBodyHtml}
     </div>
 
     <div style="background-color:#f9fafb;padding:16px 28px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;text-align:center;">
@@ -426,6 +460,171 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
   </div>
 </body>
 </html>`;
+};
+
+const normalizeHttpUrl = (value = '') => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+  return /^https?:\/\/\S+$/i.test(trimmed) ? trimmed : '';
+};
+
+/**
+ * Build default written email content & branded HTML email preview for Pending Payment Alert.
+ */
+export const buildPendingPaymentAlertEmailContent = (payment, overrides = {}) => {
+  const invoiceNumber =
+    payment.invoiceNumber || `INV-${String(payment._id || '').slice(-6).toUpperCase()}`;
+  const studentName = payment.name || 'Student';
+  const courseName = payment.course || 'Course Program';
+
+  const totalCourseFee = Math.max(0, Number(payment.totalCourseFee || 0));
+  const discountAmount = Math.max(0, Number(payment.discountAmount || 0));
+  const isCurrentCompleted = (payment.status || '').toLowerCase() === 'completed';
+  const paidTillNow = Number(
+    (
+      Math.max(0, Number(payment.previouslyPaidAmount || 0)) +
+      (isCurrentCompleted ? Math.max(0, Number(payment.paymentAmount || 0)) : 0)
+    ).toFixed(2)
+  );
+
+  const fallbackDue =
+    Number(payment.balanceDue) > 0
+      ? Number(payment.balanceDue)
+      : !isCurrentCompleted
+      ? Math.max(0, Number(payment.paymentAmount || 0))
+      : 0;
+
+  const hasOverridePending =
+    overrides.pendingAmount !== undefined &&
+    overrides.pendingAmount !== null &&
+    overrides.pendingAmount !== '' &&
+    !Number.isNaN(Number(overrides.pendingAmount));
+
+  const pendingAmount = Number(
+    Math.max(0, hasOverridePending ? Number(overrides.pendingAmount) : fallbackDue).toFixed(2)
+  );
+
+  const rawDueDate = overrides.dueDate !== undefined ? overrides.dueDate : payment.pendingAlertLastDueDate;
+  const dueDateFormatted = rawDueDate ? formatDateShort(rawDueDate) : '';
+  const hasValidDueDate = Boolean(dueDateFormatted && dueDateFormatted !== 'N/A');
+  const safePaymentLink = normalizeHttpUrl(overrides.paymentLink);
+
+  const defaultSubject = `Pending Fee Reminder (${formatInrDisplay(pendingAmount)}) - ${courseName} | Inxyme`;
+  const defaultWrittenMessage = [
+    `Dear ${studentName},`,
+    '',
+    `This is a gentle reminder regarding your pending fee payment of ${formatInrDisplay(pendingAmount)} for "${courseName}" (Reference: ${invoiceNumber}).`,
+    ...(paidTillNow > 0
+      ? ['', `We acknowledge your payment(s) of ${formatInrDisplay(paidTillNow)} already received towards this program.`]
+      : []),
+    ...(hasValidDueDate
+      ? ['', `Kindly complete the remaining balance payment of ${formatInrDisplay(pendingAmount)} on or before ${dueDateFormatted} to ensure uninterrupted batch and LMS access.`]
+      : ['', `Kindly clear the remaining balance at your earliest convenience so we can keep your batch & LMS schedule up to date.`]),
+    ...(safePaymentLink ? ['', `Payment Link: ${safePaymentLink}`] : []),
+    '',
+    'If you have already made this payment, please ignore this reminder or share the transaction reference with our accounts team.',
+    '',
+    'Best regards,',
+    'Accounts & Student Support Team',
+    'Inxyme (www.inxyme.com)',
+  ].join('\n');
+
+  const subject = (overrides.subject || payment.pendingAlertEmailSubject || defaultSubject).trim();
+  const writtenMessage = (
+    overrides.writtenMessage !== undefined
+      ? overrides.writtenMessage
+      : defaultWrittenMessage
+  ).trim();
+
+  const messageHtmlBody = escapeHtml(writtenMessage).replace(/\r?\n/g, '<br />');
+
+  const innerBodyHtml = `
+      <div style="font-size:14px;line-height:1.7;color:#1f2937;margin-bottom:24px;">
+        ${messageHtmlBody}
+      </div>
+
+      <div style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#b45309;margin-bottom:12px;">
+          Pending Fee Summary
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr>
+            <td style="padding:6px 0;color:#78350f;width:44%;">Reference / Invoice No</td>
+            <td style="padding:6px 0;font-weight:700;color:#0f172a;text-align:right;font-family:monospace;">${escapeHtml(invoiceNumber)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#78350f;">Student Name</td>
+            <td style="padding:6px 0;font-weight:600;color:#0f172a;text-align:right;">${escapeHtml(studentName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#78350f;">Course / Program</td>
+            <td style="padding:6px 0;font-weight:600;color:#0f172a;text-align:right;">${escapeHtml(courseName)}</td>
+          </tr>
+          ${
+            totalCourseFee > 0
+              ? `<tr>
+                  <td style="padding:6px 0;color:#78350f;">Total Program Fee</td>
+                  <td style="padding:6px 0;color:#334155;text-align:right;">${escapeHtml(formatInrDisplay(totalCourseFee))}</td>
+                </tr>`
+              : ''
+          }
+          ${
+            discountAmount > 0
+              ? `<tr>
+                  <td style="padding:6px 0;color:#047857;">Discount Applied</td>
+                  <td style="padding:6px 0;color:#047857;text-align:right;">- ${escapeHtml(formatInrDisplay(discountAmount))}</td>
+                </tr>`
+              : ''
+          }
+          ${
+            paidTillNow > 0
+              ? `<tr>
+                  <td style="padding:6px 0;color:#047857;font-weight:600;">Total Paid So Far</td>
+                  <td style="padding:6px 0;color:#047857;font-weight:700;text-align:right;">${escapeHtml(formatInrDisplay(paidTillNow))}</td>
+                </tr>`
+              : ''
+          }
+          ${
+            hasValidDueDate
+              ? `<tr>
+                  <td style="padding:6px 0;color:#92400e;font-weight:600;">Due Date</td>
+                  <td style="padding:6px 0;color:#92400e;font-weight:700;text-align:right;">${escapeHtml(dueDateFormatted)}</td>
+                </tr>`
+              : ''
+          }
+          <tr style="border-top:1px solid #fcd34d;">
+            <td style="padding:10px 0 4px;font-weight:800;color:#92400e;font-size:14px;">Pending Balance Due</td>
+            <td style="padding:10px 0 4px;font-weight:800;color:#b45309;font-size:17px;text-align:right;">${escapeHtml(formatInrDisplay(pendingAmount))}</td>
+          </tr>
+        </table>
+      </div>
+
+      ${
+        safePaymentLink
+          ? `<div style="text-align:center;margin:22px 0;">
+              <a href="${escapeHtml(safePaymentLink)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#f47c26;color:#ffffff;font-weight:700;font-size:14px;padding:12px 26px;border-radius:8px;text-decoration:none;">
+                Pay Pending Balance (${escapeHtml(formatInrDisplay(pendingAmount))})
+              </a>
+            </div>`
+          : ''
+      }
+
+      ${
+        overrides.attachInvoicePdf
+          ? `<div style="background-color:#eef2ff;border-left:4px solid #4f46e5;padding:12px 14px;border-radius:6px;font-size:12px;color:#312e81;">
+              <strong>Attachment Included:</strong> Your latest fee receipt PDF (<code>${escapeHtml(getInvoiceFilename(payment))}</code>) is attached for reference.
+            </div>`
+          : ''
+      }`;
+
+  const html = renderBrandedEmailShell({
+    subject,
+    subtitle: 'Pending Payment Reminder',
+    badgeText: 'PAYMENT DUE',
+    badgeColors: { bg: '#fffbeb', text: '#b45309', border: '#fcd34d' },
+    innerBodyHtml,
+    useCidLogo: Boolean(overrides.useCidLogo),
+  });
 
   return {
     to: (overrides.to || payment.email || '').trim(),
@@ -433,7 +632,13 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
     writtenMessage,
     text: writtenMessage,
     html,
-    gstBreakup: gst,
+    pendingAmount,
+    paidTillNow,
+    totalCourseFee,
+    discountAmount,
+    dueDate: rawDueDate || '',
+    dueDateFormatted: hasValidDueDate ? dueDateFormatted : '',
+    paymentLink: safePaymentLink,
     pdfFilename: getInvoiceFilename(payment),
   };
 };

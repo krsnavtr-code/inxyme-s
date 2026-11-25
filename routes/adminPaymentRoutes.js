@@ -10,6 +10,8 @@ import {
   getPaymentInvoicePdf,
   getPaymentInvoicePreview,
   sendPaymentInvoiceEmail,
+  getPendingPaymentAlertPreview,
+  sendPendingPaymentAlertEmail,
 } from '../controllers/adminPaymentController.js';
 
 const router = express.Router();
@@ -63,6 +65,16 @@ router.get('/:id/invoice-preview', protect, admin, getPaymentInvoicePreview);
 // @desc    Send Payment Invoice email with attached PDF receipt (Admin only)
 // @access  Private/Admin
 router.post('/:id/send-invoice', protect, admin, sendPaymentInvoiceEmail);
+
+// @route   GET /api/admin/payments/:id/pending-alert-preview
+// @desc    Get written email preview for Pending Payment Alert (Admin only)
+// @access  Private/Admin
+router.get('/:id/pending-alert-preview', protect, admin, getPendingPaymentAlertPreview);
+
+// @route   POST /api/admin/payments/:id/send-pending-alert
+// @desc    Send Pending Payment Alert reminder email (Admin only)
+// @access  Private/Admin
+router.post('/:id/send-pending-alert', protect, admin, sendPendingPaymentAlertEmail);
 
 // @route   GET /api/admin/payments/:id
 // @desc    Get payment by ID (Admin only)
