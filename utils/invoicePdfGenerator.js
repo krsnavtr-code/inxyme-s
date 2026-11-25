@@ -662,10 +662,8 @@ export const buildLmsInviteEmailContent = (user, overrides = {}) => {
     (enrolledCourseTitles.length > 0 ? enrolledCourseTitles.join(', ') : '');
 
   const defaultLmsUrl =
-    process.env.LMS_LOGIN_URL ||
-    process.env.CLIENT_LOGIN_URL ||
-    'https://www.inxyme.com/login';
-  const lmsLoginUrl = normalizeHttpUrl(overrides.lmsLoginUrl || defaultLmsUrl) || 'https://www.inxyme.com/login';
+    process.env.LMS_LOGIN_URL || 'https://smart-board.inxyme.com';
+  const lmsLoginUrl = normalizeHttpUrl(overrides.lmsLoginUrl || defaultLmsUrl) || 'https://smart-board.inxyme.com';
 
   const primaryCourse = enrolledCourseTitles[0] || '';
   const defaultSubject = primaryCourse
@@ -1409,6 +1407,7 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     '1. All fees quoted and collected include 18% GST unless specified otherwise.',
     '2. Registration and program fees are non-refundable once batch allocation or LMS access is granted.',
     '3. This is a computer-generated Tax Invoice & Payment Receipt and does not require a physical signature.',
+    '4. Any kind of legal dispute will come under jurisdiction of Delhi High Court.'
   ];
   let termY = footerLineY - 29;
   for (const t of terms) {
