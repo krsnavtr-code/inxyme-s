@@ -6,6 +6,7 @@ import {
   refreshToken,
   changePassword,
   forgotPassword,
+  verifyResetToken,
   resetPassword,
   verifyOTP,
   resendOTP,
@@ -21,6 +22,7 @@ router.post("/register", register);
 router.post("/login", login);
 router.post("/refresh-token", refreshToken);
 router.post("/forgot-password", forgotPassword);
+router.get("/verify-reset-token", verifyResetToken);
 router.post("/reset-password", resetPassword);
 router.post("/verify-otp", verifyOTP);
 router.post("/resend-otp", resendOTP);

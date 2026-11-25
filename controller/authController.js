@@ -794,51 +794,74 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   }
 });
 
-// @desc    Reset password
-// @route   POST /api/auth/reset-password
-// @access  Public
-export const resetPassword = catchAsync(async (req, res, next) => {
-  const { token, email, password } = req.body;
+/**
+ * Shared helper to validate a password reset token for a normalized email.
+ */
+const validateResetTokenForUser = async (token, email) => {
   const normalizedEmail = String(email || "")
     .trim()
     .toLowerCase();
   const cleanToken = String(token || "").trim();
 
-  if (!cleanToken || !normalizedEmail || !password) {
+  if (!cleanToken || !normalizedEmail) {
+    throw new AppError("Reset token and email are required", 400);
+  }
+
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    "+passwordResetToken +passwordResetExpires +password +refreshToken",
+  );
+
+  if (!user) {
+    throw new AppError("No user found with that email address", 404);
+  }
+
+  if (!user.passwordResetToken || !user.passwordResetExpires) {
+    throw new AppError("No password reset request found", 400);
+  }
+
+  if (Date.now() > new Date(user.passwordResetExpires).getTime()) {
+    throw new AppError("Password reset token has expired", 400);
+  }
+
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(cleanToken)
+    .digest("hex");
+
+  if (hashedToken !== user.passwordResetToken) {
+    throw new AppError("Invalid reset token", 400);
+  }
+
+  return user;
+};
+
+// @desc    Verify whether a password reset token is still valid/unexpired
+// @route   GET /api/auth/verify-reset-token
+// @access  Public
+export const verifyResetToken = catchAsync(async (req, res) => {
+  const { token, email } = req.query;
+  await validateResetTokenForUser(token, email);
+  res.json({
+    success: true,
+    valid: true,
+    message: "Reset token is valid",
+  });
+});
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password
+// @access  Public
+export const resetPassword = catchAsync(async (req, res, next) => {
+  const { token, email, password } = req.body;
+
+  if (!token || !email || !password) {
     return next(
       new AppError("Reset token, email, and new password are required", 400),
     );
   }
 
   try {
-    // Find user by normalized email and explicitly select password reset fields and password
-    const user = await User.findOne({ email: normalizedEmail }).select(
-      "+passwordResetToken +passwordResetExpires +password +refreshToken",
-    );
-
-    if (!user) {
-      return next(new AppError("No user found with that email address", 404));
-    }
-
-    // Check if reset token exists and is not expired
-    if (!user.passwordResetToken || !user.passwordResetExpires) {
-      return next(new AppError("No password reset request found", 400));
-    }
-
-    // Check if token has expired
-    if (Date.now() > user.passwordResetExpires) {
-      return next(new AppError("Password reset token has expired", 400));
-    }
-
-    // Hash the provided token and compare with stored token
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(cleanToken)
-      .digest("hex");
-
-    if (hashedToken !== user.passwordResetToken) {
-      return next(new AppError("Invalid reset token", 400));
-    }
+    const user = await validateResetTokenForUser(token, email);
 
     user.password = password;
 
