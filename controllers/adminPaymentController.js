@@ -182,7 +182,7 @@ export const createAdminPayment = async (req, res) => {
       course,
       paymentAmount,
       totalCourseFee = null,
-      discountAmount = 0,
+      discountAmount,
       balanceDue = null,
       installmentLabel = 'Full Course Fee',
       paymentMethod = 'upi',
@@ -198,7 +198,7 @@ export const createAdminPayment = async (req, res) => {
 
     let selectedUser = null;
     if (userId) {
-      selectedUser = await User.findById(userId).select('fullname email phone address');
+      selectedUser = await User.findById(userId).select('fullname email phone address discount');
       if (!selectedUser) {
         return res.status(404).json({
           success: false,
@@ -209,7 +209,7 @@ export const createAdminPayment = async (req, res) => {
 
     let selectedCourse = null;
     if (courseId) {
-      selectedCourse = await Course.findById(courseId).select('title price');
+      selectedCourse = await Course.findById(courseId).select('title price originalPrice isFree');
       if (!selectedCourse) {
         return res.status(404).json({
           success: false,
@@ -246,14 +246,29 @@ export const createAdminPayment = async (req, res) => {
       });
     }
 
+    const courseFallbackPrice = selectedCourse
+      ? selectedCourse.isFree
+        ? 0
+        : Number(selectedCourse.price ?? selectedCourse.originalPrice ?? 0)
+      : null;
+
     const numericTotalFee =
       totalCourseFee !== null && totalCourseFee !== '' && !Number.isNaN(Number(totalCourseFee))
         ? Math.max(0, Number(totalCourseFee))
-        : selectedCourse?.price !== undefined
-        ? Number(selectedCourse.price)
-        : null;
+        : courseFallbackPrice;
 
-    const numericDiscount = Math.max(0, Number(discountAmount) || 0);
+    const hasExplicitDiscount =
+      discountAmount !== undefined &&
+      discountAmount !== null &&
+      discountAmount !== '' &&
+      !Number.isNaN(Number(discountAmount));
+
+    const userDiscountPct = Math.min(100, Math.max(0, Number(selectedUser?.discount || 0)));
+    const numericDiscount = hasExplicitDiscount
+      ? Math.max(0, Number(discountAmount))
+      : numericTotalFee > 0 && userDiscountPct > 0
+      ? Number(((numericTotalFee * userDiscountPct) / 100).toFixed(2))
+      : 0;
     const computedBalance =
       balanceDue !== null && balanceDue !== '' && !Number.isNaN(Number(balanceDue))
         ? Math.max(0, Number(balanceDue))
@@ -323,8 +338,8 @@ export const createAdminPayment = async (req, res) => {
     }
 
     const populatedPayment = await DirectPayment.findById(payment._id)
-      .populate('userId', 'fullname email phone address studentId role')
-      .populate('courseId', 'title price slug');
+      .populate('userId', 'fullname email phone address studentId role discount')
+      .populate('courseId', 'title price originalPrice isFree slug');
 
     res.status(201).json({
       success: true,
@@ -616,8 +631,8 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
     await payment.save();
 
     const populatedPayment = await DirectPayment.findById(payment._id)
-      .populate('userId', 'fullname email phone address studentId role')
-      .populate('courseId', 'title price slug');
+      .populate('userId', 'fullname email phone address studentId role discount')
+      .populate('courseId', 'title price originalPrice isFree slug');
 
     res.status(200).json({
       success: true,
