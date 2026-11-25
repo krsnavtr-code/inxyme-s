@@ -271,6 +271,12 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
     `Thank you for your payment of ${formatInrDisplay(gst.grandTotal)} towards "${courseName}" (${payment.installmentLabel || 'Course Fee'}).`,
     '',
     `Your payment has been recorded under Invoice Number ${invoiceNumber} on ${paidDate}. Please find your official Tax Invoice / Payment Receipt PDF attached with this email for your records.`,
+    ...(Number(payment.previouslyPaidAmount) > 0
+      ? [
+          '',
+          `Previously Paid for this course: ${formatInrDisplay(payment.previouslyPaidAmount)}.`,
+        ]
+      : []),
     ...(Number(payment.balanceDue) > 0
       ? [
           '',
@@ -389,6 +395,14 @@ export const buildInvoiceEmailContent = (payment, overrides = {}) => {
             <td style="padding:10px 0 4px;font-weight:700;color:#0f172a;font-size:14px;">Total Amount Paid</td>
             <td style="padding:10px 0 4px;font-weight:800;color:#4338ca;font-size:16px;text-align:right;">${escapeHtml(formatInrDisplay(gst.grandTotal))}</td>
           </tr>
+          ${
+            Number(payment.previouslyPaidAmount) > 0
+              ? `<tr>
+                  <td style="padding:4px 0;color:#047857;font-weight:600;">Previously Paid (Earlier)</td>
+                  <td style="padding:4px 0;color:#047857;font-weight:700;text-align:right;">- ${escapeHtml(formatInrDisplay(payment.previouslyPaidAmount))}</td>
+                </tr>`
+              : ''
+          }
           ${
             Number(payment.balanceDue) > 0
               ? `<tr>
@@ -905,6 +919,9 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
   }
   if (Number(payment.discountAmount) > 0) {
     summaryLines.push({ label: 'Discount Applied', value: `- ${formatInrAscii(payment.discountAmount)}` });
+  }
+  if (Number(payment.previouslyPaidAmount) > 0) {
+    summaryLines.push({ label: 'Previously Paid', value: `- ${formatInrAscii(payment.previouslyPaidAmount)}` });
   }
   summaryLines.push({ label: 'Taxable Value', value: formatInrAscii(gst.taxableValue) });
   if (gst.gstRate > 0) {

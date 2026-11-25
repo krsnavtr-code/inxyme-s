@@ -50,6 +50,11 @@ const directPaymentSchema = new mongoose.Schema(
       min: [0, 'Discount amount cannot be negative'],
       default: 0,
     },
+    previouslyPaidAmount: {
+      type: Number,
+      min: [0, 'Previously paid amount cannot be negative'],
+      default: 0,
+    },
     balanceDue: {
       type: Number,
       min: [0, 'Balance due cannot be negative'],

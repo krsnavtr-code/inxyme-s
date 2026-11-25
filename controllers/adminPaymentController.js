@@ -47,6 +47,105 @@ const ensurePaymentInvoiceNumber = async (payment) => {
   return payment;
 };
 
+/**
+ * Fetch completed payment history for a student (matched by userId or email)
+ * and compute previously paid totals for a specific course.
+ */
+const fetchStudentCompletedHistory = async ({ userId = null, email = '', courseId = null, course = '' }) => {
+  const orStudent = [];
+  if (userId) orStudent.push({ userId });
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (normalizedEmail) orStudent.push({ email: normalizedEmail });
+
+  if (orStudent.length === 0) {
+    return {
+      payments: [],
+      coursePayments: [],
+      previouslyPaidForCourse: 0,
+      totalPaidAllCourses: 0,
+    };
+  }
+
+  const completedPayments = await DirectPayment.find({
+    status: 'completed',
+    $or: orStudent,
+  })
+    .select(
+      '_id invoiceNumber courseId course paymentAmount totalCourseFee discountAmount balanceDue paymentMethod paymentDate createdAt installmentLabel status'
+    )
+    .sort({ paymentDate: -1, createdAt: -1 })
+    .lean();
+
+  const targetCourseId = courseId ? String(courseId) : '';
+  const targetCourseTitle = String(course || '').trim().toLowerCase();
+
+  const coursePayments =
+    targetCourseId || targetCourseTitle
+      ? completedPayments.filter((p) => {
+          const pCourseId = p.courseId ? String(p.courseId) : '';
+          if (targetCourseId && pCourseId && pCourseId === targetCourseId) {
+            return true;
+          }
+          const pTitle = String(p.course || '').trim().toLowerCase();
+          return Boolean(targetCourseTitle && pTitle && pTitle === targetCourseTitle);
+        })
+      : [];
+
+  const totalPaidAllCourses = Number(
+    completedPayments.reduce((sum, p) => sum + (Number(p.paymentAmount) || 0), 0).toFixed(2)
+  );
+  const previouslyPaidForCourse = Number(
+    coursePayments.reduce((sum, p) => sum + (Number(p.paymentAmount) || 0), 0).toFixed(2)
+  );
+
+  return {
+    payments: completedPayments,
+    coursePayments,
+    previouslyPaidForCourse,
+    totalPaidAllCourses,
+  };
+};
+
+// @desc    Get completed payment history for a student (to compute prior installments & balance due)
+// @route   GET /api/admin/payments/student-history
+// @access  Private/Admin
+export const getStudentPaymentHistory = async (req, res) => {
+  try {
+    const { userId = '', email = '', courseId = '', course = '' } = req.query;
+
+    let resolvedEmail = String(email || '').trim().toLowerCase();
+    if (userId && !resolvedEmail) {
+      const user = await User.findById(userId).select('email').lean();
+      if (user?.email) resolvedEmail = String(user.email).trim().toLowerCase();
+    }
+
+    let resolvedCourseTitle = String(course || '').trim();
+    if (courseId && !resolvedCourseTitle) {
+      const foundCourse = await Course.findById(courseId).select('title').lean();
+      if (foundCourse?.title) resolvedCourseTitle = String(foundCourse.title).trim();
+    }
+
+    const history = await fetchStudentCompletedHistory({
+      userId: userId || null,
+      email: resolvedEmail,
+      courseId: courseId || null,
+      course: resolvedCourseTitle,
+    });
+
+    res.status(200).json({
+      success: true,
+      ...history,
+    });
+  } catch (error) {
+    console.error('Error fetching student payment history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch student payment history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
 // @desc    Get all payments with search, filtering, and summary stats
 // @route   GET /api/admin/payments
 // @access  Private/Admin
@@ -183,6 +282,7 @@ export const createAdminPayment = async (req, res) => {
       paymentAmount,
       totalCourseFee = null,
       discountAmount,
+      previouslyPaidAmount,
       balanceDue = null,
       installmentLabel = 'Full Course Fee',
       paymentMethod = 'upi',
@@ -269,11 +369,31 @@ export const createAdminPayment = async (req, res) => {
       : numericTotalFee > 0 && userDiscountPct > 0
       ? Number(((numericTotalFee * userDiscountPct) / 100).toFixed(2))
       : 0;
+
+    const hasExplicitPreviousPaid =
+      previouslyPaidAmount !== undefined &&
+      previouslyPaidAmount !== null &&
+      previouslyPaidAmount !== '' &&
+      !Number.isNaN(Number(previouslyPaidAmount));
+
+    let numericPreviouslyPaid = 0;
+    if (hasExplicitPreviousPaid) {
+      numericPreviouslyPaid = Math.max(0, Number(previouslyPaidAmount));
+    } else {
+      const priorHistory = await fetchStudentCompletedHistory({
+        userId: selectedUser?._id || null,
+        email: finalEmail,
+        courseId: selectedCourse?._id || null,
+        course: finalCourseTitle,
+      });
+      numericPreviouslyPaid = priorHistory.previouslyPaidForCourse;
+    }
+
     const computedBalance =
       balanceDue !== null && balanceDue !== '' && !Number.isNaN(Number(balanceDue))
         ? Math.max(0, Number(balanceDue))
         : numericTotalFee !== null
-        ? Math.max(0, numericTotalFee - numericDiscount - numericPaid)
+        ? Number(Math.max(0, numericTotalFee - numericDiscount - numericPreviouslyPaid - numericPaid).toFixed(2))
         : 0;
 
     const invoiceNumber = await generateUniqueInvoiceNumber(paymentDate);
@@ -290,6 +410,7 @@ export const createAdminPayment = async (req, res) => {
       paymentAmount: numericPaid,
       totalCourseFee: numericTotalFee,
       discountAmount: numericDiscount,
+      previouslyPaidAmount: numericPreviouslyPaid,
       balanceDue: computedBalance,
       installmentLabel: String(installmentLabel || 'Full Course Fee').trim(),
       paymentMethod,

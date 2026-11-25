@@ -3,6 +3,7 @@ import { check, body } from 'express-validator';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import {
   getAllPayments,
+  getStudentPaymentHistory,
   createAdminPayment,
   getPaymentById,
   updatePaymentStatus,
@@ -17,6 +18,11 @@ const router = express.Router();
 // @desc    Get all payments (Admin only)
 // @access  Private/Admin
 router.get('/', protect, admin, getAllPayments);
+
+// @route   GET /api/admin/payments/student-history
+// @desc    Get student's prior completed payments for balance calculation (Admin only)
+// @access  Private/Admin
+router.get('/student-history', protect, admin, getStudentPaymentHistory);
 
 // @route   POST /api/admin/payments
 // @desc    Record a new payment for a student from user database (Admin only)
