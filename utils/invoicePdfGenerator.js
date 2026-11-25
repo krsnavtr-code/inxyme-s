@@ -7,12 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const COMPANY_INFO = {
-  name: process.env.COMPANY_LEGAL_NAME || 'Inxyme',
+  name: process.env.COMPANY_LEGAL_NAME,
   tagline: 'Skill Development & Career Training Platform',
   website: 'www.inxyme.com',
-  email: process.env.EMAIL_FROM_ADDRESS || 'info@inxyme.com',
+  email: process.env.EMAIL_FROM_ADDRESS,
   phone: '+91 9891030303',
-  gstin: process.env.COMPANY_GSTIN || '',
+  gstin: process.env.COMPANY_GSTIN,
 };
 
 export const PAYMENT_METHOD_LABELS = {
