@@ -684,9 +684,16 @@ export const refreshToken = catchAsync(async (req, res, next) => {
 // @access  Public
 export const forgotPassword = catchAsync(async (req, res, next) => {
   const { email } = req.body;
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
 
-  // Find user by email
-  const user = await User.findOne({ email });
+  if (!normalizedEmail) {
+    return next(new AppError("Please provide your email address", 400));
+  }
+
+  // Find user by normalized email
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
     return next(new AppError("No user found with that email address", 404));
@@ -706,7 +713,12 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   await user.save();
 
   // Create reset URL
-  const resetURL = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+  const baseClientUrl = (
+    process.env.CLIENT_URL ||
+    process.env.FRONTEND_URL ||
+    "http://localhost:3000"
+  ).replace(/\/+$/, "");
+  const resetURL = `${baseClientUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
   // Send email
   const subject = "Password Reset Request - Inxyme";
@@ -759,7 +771,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
 
   try {
     await sendEmail({
-      to: email,
+      to: normalizedEmail,
       subject,
       html,
     });
@@ -770,6 +782,9 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     });
   } catch (emailError) {
     console.error("Error sending password reset email:", emailError);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save({ validateBeforeSave: false });
     return next(
       new AppError(
         "Failed to send password reset email. Please try again later.",
@@ -784,10 +799,20 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
 // @access  Public
 export const resetPassword = catchAsync(async (req, res, next) => {
   const { token, email, password } = req.body;
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
+  const cleanToken = String(token || "").trim();
+
+  if (!cleanToken || !normalizedEmail || !password) {
+    return next(
+      new AppError("Reset token, email, and new password are required", 400),
+    );
+  }
 
   try {
-    // Find user by email and explicitly select password reset fields and password
-    const user = await User.findOne({ email }).select(
+    // Find user by normalized email and explicitly select password reset fields and password
+    const user = await User.findOne({ email: normalizedEmail }).select(
       "+passwordResetToken +passwordResetExpires +password +refreshToken",
     );
 
@@ -806,7 +831,10 @@ export const resetPassword = catchAsync(async (req, res, next) => {
     }
 
     // Hash the provided token and compare with stored token
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(cleanToken)
+      .digest("hex");
 
     if (hashedToken !== user.passwordResetToken) {
       return next(new AppError("Invalid reset token", 400));
