@@ -510,7 +510,7 @@ ${companyName}
         venue,
         city,
         qrCodeUrl: `https://inxyme.com/verify/${candidate._id}`,
-        logoUrl: "https://www.inxyme.com/api/upload/file/Inxyme-png-logo-2232.png",
+        logoUrl: "https://www.inxyme.com/images/inxyme-logo.png",
       },
     );
 
