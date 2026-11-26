@@ -7,12 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const COMPANY_INFO = {
-  name: process.env.COMPANY_LEGAL_NAME,
+  name: (process.env.COMPANY_LEGAL_NAME || '').trim() || 'Inxyme',
   tagline: 'Skill Development & Career Training Platform',
   website: 'www.inxyme.com',
-  email: process.env.EMAIL_FROM_ADDRESS,
+  email: (process.env.EMAIL_FROM_ADDRESS || '').trim() || 'info@inxyme.com',
   phone: '+91 9891030303',
-  gstin: process.env.COMPANY_GSTIN,
+  gstin: (process.env.COMPANY_GSTIN || '').trim(),
 };
 
 export const PAYMENT_METHOD_LABELS = {
@@ -106,8 +106,8 @@ export const formatInrDisplay = (amount) => {
  * Convert number to Indian Rupees words (Crores / Lakhs / Thousands).
  */
 export const numberToIndianWords = (amount) => {
-  const num = Number(amount) || 0;
-  if (num === 0) return 'Zero Rupees Only';
+  const num = Number(amount);
+  if (!Number.isFinite(num) || num <= 0) return 'Zero Rupees Only';
 
   const ones = [
     '',
@@ -858,7 +858,7 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     }
   }
 
-  page.drawText(safePdfText(COMPANY_INFO.name.toUpperCase()), {
+  page.drawText(safePdfText((COMPANY_INFO.name || 'Inxyme').toUpperCase()), {
     x: logoOffsetX,
     y: y - 4,
     size: 18,
@@ -929,8 +929,12 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
   });
 
   // Status badge on top right
-  const statusRaw = (payment.status || 'completed').toLowerCase();
-  const statusLabel = statusRaw === 'completed' ? 'PAID' : statusRaw.toUpperCase();
+  const statusRaw = String(payment.status || 'completed').toLowerCase();
+  const statusLabel = safePdfText(
+    statusRaw === 'completed' || statusRaw === 'paid' || statusRaw === 'captured'
+      ? 'PAID'
+      : statusRaw.toUpperCase()
+  ) || 'PAID';
   const badgeStyle =
     statusRaw === 'completed'
       ? { bg: colors.greenBg, fg: colors.greenText }
@@ -1003,7 +1007,8 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     color: colors.indigo,
   });
   leftY -= 16;
-  page.drawText(safePdfText(payment.name || 'Student'), {
+  const studentNameLine = wrapTextLines(payment.name || 'Student', boldFont, 10.5, colWidth - 24)[0] || 'Student';
+  page.drawText(studentNameLine, {
     x: margin + 12,
     y: leftY,
     size: 10.5,
@@ -1011,7 +1016,8 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     color: colors.slate900,
   });
   leftY -= 14;
-  page.drawText(safePdfText(`Email: ${payment.email || 'N/A'}`), {
+  const studentEmailLine = wrapTextLines(`Email: ${payment.email || 'N/A'}`, regularFont, 8.5, colWidth - 24)[0] || 'Email: N/A';
+  page.drawText(studentEmailLine, {
     x: margin + 12,
     y: leftY,
     size: 8.5,
@@ -1019,7 +1025,8 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     color: colors.slate700,
   });
   leftY -= 12;
-  page.drawText(safePdfText(`Phone: ${payment.phone || 'Not provided'}`), {
+  const studentPhoneLine = wrapTextLines(`Phone: ${payment.phone || 'Not provided'}`, regularFont, 8.5, colWidth - 24)[0] || 'Phone: Not provided';
+  page.drawText(studentPhoneLine, {
     x: margin + 12,
     y: leftY,
     size: 8.5,

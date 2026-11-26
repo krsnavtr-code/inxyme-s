@@ -40,10 +40,45 @@ const generateUniqueInvoiceNumber = async (dateInput = new Date()) => {
 };
 
 const ensurePaymentInvoiceNumber = async (payment) => {
-  if (!payment.invoiceNumber) {
-    payment.invoiceNumber = await generateUniqueInvoiceNumber(payment.paymentDate || payment.createdAt);
-    await payment.save();
+  if (!payment || payment.invoiceNumber) {
+    return payment;
   }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const candidate = await generateUniqueInvoiceNumber(payment.paymentDate || payment.createdAt);
+    try {
+      const updated = await DirectPayment.findOneAndUpdate(
+        {
+          _id: payment._id,
+          $or: [
+            { invoiceNumber: { $exists: false } },
+            { invoiceNumber: null },
+            { invoiceNumber: '' },
+          ],
+        },
+        { $set: { invoiceNumber: candidate } },
+        { new: true }
+      );
+
+      if (updated?.invoiceNumber) {
+        payment.invoiceNumber = updated.invoiceNumber;
+        return payment;
+      }
+
+      // Another concurrent request (e.g. parallel preview/PDF fetch) assigned an invoiceNumber first
+      const latest = await DirectPayment.findById(payment._id).select('invoiceNumber').lean();
+      if (latest?.invoiceNumber) {
+        payment.invoiceNumber = latest.invoiceNumber;
+        return payment;
+      }
+    } catch (err) {
+      if (err?.code === 11000 && attempt < 2) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
   return payment;
 };
 
@@ -82,13 +117,13 @@ const fetchStudentCompletedHistory = async ({ userId = null, email = '', courseI
   const coursePayments =
     targetCourseId || targetCourseTitle
       ? completedPayments.filter((p) => {
-          const pCourseId = p.courseId ? String(p.courseId) : '';
-          if (targetCourseId && pCourseId && pCourseId === targetCourseId) {
-            return true;
-          }
-          const pTitle = String(p.course || '').trim().toLowerCase();
-          return Boolean(targetCourseTitle && pTitle && pTitle === targetCourseTitle);
-        })
+        const pCourseId = p.courseId ? String(p.courseId) : '';
+        if (targetCourseId && pCourseId && pCourseId === targetCourseId) {
+          return true;
+        }
+        const pTitle = String(p.course || '').trim().toLowerCase();
+        return Boolean(targetCourseTitle && pTitle && pTitle === targetCourseTitle);
+      })
       : [];
 
   const totalPaidAllCourses = Number(
@@ -367,8 +402,8 @@ export const createAdminPayment = async (req, res) => {
     const numericDiscount = hasExplicitDiscount
       ? Math.max(0, Number(discountAmount))
       : numericTotalFee > 0 && userDiscountPct > 0
-      ? Number(((numericTotalFee * userDiscountPct) / 100).toFixed(2))
-      : 0;
+        ? Number(((numericTotalFee * userDiscountPct) / 100).toFixed(2))
+        : 0;
 
     const hasExplicitPreviousPaid =
       previouslyPaidAmount !== undefined &&
@@ -393,8 +428,8 @@ export const createAdminPayment = async (req, res) => {
       balanceDue !== null && balanceDue !== '' && !Number.isNaN(Number(balanceDue))
         ? Math.max(0, Number(balanceDue))
         : numericTotalFee !== null
-        ? Number(Math.max(0, numericTotalFee - numericDiscount - numericPreviouslyPaid - numericPaid).toFixed(2))
-        : 0;
+          ? Number(Math.max(0, numericTotalFee - numericDiscount - numericPreviouslyPaid - numericPaid).toFixed(2))
+          : 0;
 
     const invoiceNumber = await generateUniqueInvoiceNumber(paymentDate);
     const cleanTxnId = String(transactionId || '').trim();
