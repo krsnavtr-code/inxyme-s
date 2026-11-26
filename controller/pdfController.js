@@ -200,16 +200,26 @@ export const sendBrochure = async (req, res) => {
             });
         }
 
+        const rawMessage = message || 'Please find attached the requested materials.';
+        const plainTextMessage = String(rawMessage)
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/[ \t]+/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim() || 'Please find attached the requested materials.';
+
+        const emailHtmlBody = /^\s*(<!doctype|<html|<div\b|<table\b)/i.test(String(rawMessage))
+            ? String(rawMessage)
+            : `<div style="font-family: Arial, sans-serif; line-height: 1.5; margin: 0; padding: 0;">${rawMessage}</div>`;
+
         // Send the email with all attachments
         await sendEmail({
             to: email,
             subject: subject || 'Course Materials',
-            text: message || 'Please find attached the requested materials.',
-            html: `
-                <div style="font-family: Arial, sans-serif; line-height: 1.4; margin: 0; padding: 0;">
-                    ${message || 'Please find attached the requested materials.'}
-                </div>
-            `,
+            text: plainTextMessage,
+            html: emailHtmlBody,
             attachments
         });
 
