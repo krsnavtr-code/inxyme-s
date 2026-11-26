@@ -281,22 +281,17 @@ router.get("/file/:filename", async (req, res) => {
 
       // Set appropriate content type based on file extension
       const ext = path.extname(filename).toLowerCase().substring(1);
-      const mimeTypes = {
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        svg: "image/svg+xml",
-      };
-
-      const contentType = mimeTypes[ext] || "application/octet-stream";
+      const contentType = getMimeType(filename);
+      const safeHeaderFilename = path.basename(filename).replace(/["\r\n]/g, "_");
 
       res.sendFile(
         filePath,
         {
           headers: {
             "Content-Type": contentType,
+            ...(ext === "pdf"
+              ? { "Content-Disposition": `inline; filename="${safeHeaderFilename}"` }
+              : {}),
             "Cache-Control": "public, max-age=31536000",
             "X-Content-Type-Options": "nosniff",
           },
