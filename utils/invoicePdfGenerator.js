@@ -7,10 +7,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const COMPANY_INFO = {
-  name: (process.env.COMPANY_LEGAL_NAME || '').trim() || 'Inxyme',
+  brandName: 'Inxyme',
+  name: (process.env.COMPANY_LEGAL_NAME || '').trim() || 'Eklavya Centre of Excellence Pvt. Ltd.',
   tagline: 'Skill Development & Career Training Platform',
   website: 'www.inxyme.com',
-  email: (process.env.EMAIL_FROM_ADDRESS || '').trim() || 'info@inxyme.com',
+  email: (process.env.COMPANY_SUPPORT_EMAIL || '').trim() || 'info@inxyme.com',
   phone: '+91 9891030303',
   gstin: (process.env.COMPANY_GSTIN || '').trim(),
 };
@@ -858,36 +859,55 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     }
   }
 
-  page.drawText(safePdfText((COMPANY_INFO.name || 'Inxyme').toUpperCase()), {
+  page.drawText(safePdfText((COMPANY_INFO.brandName || 'Inxyme').toUpperCase()), {
     x: logoOffsetX,
-    y: y - 4,
-    size: 18,
+    y: y - 2,
+    size: 17,
     font: boldFont,
     color: colors.indigoDark,
   });
+  const legalNameLines = wrapTextLines(
+    COMPANY_INFO.name || 'Eklavya Centre of Excellence Pvt. Ltd.',
+    boldFont,
+    8.5,
+    width - margin - 175 - logoOffsetX
+  );
+  let headerLeftY = y - 16;
+  if (legalNameLines[0]) {
+    page.drawText(legalNameLines[0], {
+      x: logoOffsetX,
+      y: headerLeftY,
+      size: 8.5,
+      font: boldFont,
+      color: colors.slate700,
+    });
+    headerLeftY -= 12;
+  }
   page.drawText(safePdfText(COMPANY_INFO.tagline), {
     x: logoOffsetX,
-    y: y - 19,
-    size: 8.5,
+    y: headerLeftY,
+    size: 8,
     font: regularFont,
     color: colors.slate500,
   });
+  headerLeftY -= 11;
   page.drawText(
     safePdfText(`${COMPANY_INFO.website}  |  ${COMPANY_INFO.email}  |  ${COMPANY_INFO.phone}`),
     {
       x: logoOffsetX,
-      y: y - 31,
-      size: 8,
+      y: headerLeftY,
+      size: 7.8,
       font: regularFont,
       color: colors.slate500,
     }
   );
+  headerLeftY -= 11;
 
   const effectiveCompanyGstin = safePdfText(payment.companyGstin || COMPANY_INFO.gstin);
   if (effectiveCompanyGstin) {
     page.drawText(`GSTIN: ${effectiveCompanyGstin}`, {
       x: logoOffsetX,
-      y: y - 43,
+      y: headerLeftY,
       size: 8,
       font: boldFont,
       color: colors.slate700,
@@ -979,7 +999,7 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
   const colWidth = (contentWidth - colGap) / 2;
 
   const studentAddressLines = wrapTextLines(
-    payment.address && payment.address !== 'Not provided' ? payment.address : 'Address not provided',
+    payment.address && payment.address !== 'Not provided' ? payment.address : '',
     regularFont,
     8.5,
     colWidth - 24
@@ -1082,7 +1102,7 @@ export const generatePaymentInvoicePdfBuffer = async (payment) => {
     ['Payment Date:', formatDateShort(payment.paymentDate || payment.createdAt)],
     ['Payment Mode:', formatPaymentMethodLabel(payment.paymentMethod)],
     ['Ref / Txn ID:', refValue || 'N/A'],
-    ['Purpose:', payment.installmentLabel || 'Full Course Fee'],
+    // ['Purpose:', payment.installmentLabel || 'Full Course Fee'],
     [
       'Recorded Via:',
       payment.source === 'admin_manual'
