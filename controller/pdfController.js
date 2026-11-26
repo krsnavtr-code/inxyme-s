@@ -77,10 +77,60 @@ export const getAvailablePdfs = async (req, res) => {
     }
 };
 
+const PUBLIC_ROOT = path.resolve(__dirname, '..', 'public');
+
+const resolvePublicAssetPath = (rawPath) => {
+    if (!rawPath || typeof rawPath !== 'string') return null;
+
+    let clean = rawPath.trim();
+    if (/^https?:\/\//i.test(clean)) {
+        try {
+            clean = new URL(clean).pathname;
+        } catch {
+            return null;
+        }
+    }
+
+    clean = clean.split(/[?#]/)[0];
+
+    // Map /api/upload/file/<filename> back to /uploads/<filename> on disk
+    const apiUploadMatch = clean.match(/^\/?api\/upload\/file\/(.+)$/i);
+    if (apiUploadMatch && apiUploadMatch[1]) {
+        try {
+            clean = `/uploads/${decodeURIComponent(apiUploadMatch[1])}`;
+        } catch {
+            clean = `/uploads/${apiUploadMatch[1]}`;
+        }
+    }
+
+    const relative = clean.replace(/^[/\\]+/, '');
+    if (!relative) return null;
+
+    const resolved = path.resolve(PUBLIC_ROOT, relative);
+    if (!resolved.startsWith(PUBLIC_ROOT + path.sep)) {
+        return null;
+    }
+
+    return resolved;
+};
+
+const getSafePdfFilename = (detail, fallbackPath) => {
+    const rawName = (detail?.attachmentName || detail?.name || '').trim();
+    if (rawName) {
+        const sanitized = rawName
+            .replace(/[^a-zA-Z0-9._-\s]/g, '_')
+            .replace(/\s+/g, '_');
+        if (sanitized) {
+            return sanitized.toLowerCase().endsWith('.pdf') ? sanitized : `${sanitized}.pdf`;
+        }
+    }
+    return path.basename(fallbackPath);
+};
+
 // Send multiple brochures via email
 export const sendBrochure = async (req, res) => {
     try {
-        const { pdfPaths = [], videoPaths = [], email, subject, message } = req.body;
+        const { pdfPaths = [], pdfDetails = [], videoPaths = [], email, subject, message } = req.body;
 
         if ((!pdfPaths || pdfPaths.length === 0) && (!videoPaths || videoPaths.length === 0)) {
             return res.status(400).json({
@@ -100,12 +150,16 @@ export const sendBrochure = async (req, res) => {
         const errors = [];
 
         // Process PDF attachments
-        for (const pdfPath of pdfPaths) {
+        for (let i = 0; i < pdfPaths.length; i++) {
+            const pdfPath = pdfPaths[i];
+            const detail = Array.isArray(pdfDetails)
+                ? pdfDetails.find((d) => d?.path === pdfPath) || pdfDetails[i]
+                : null;
             try {
-                const fullPath = path.join(__dirname, '..', 'public', pdfPath);
-                if (fs.existsSync(fullPath)) {
+                const fullPath = resolvePublicAssetPath(pdfPath);
+                if (fullPath && fs.existsSync(fullPath)) {
                     attachments.push({
-                        filename: path.basename(pdfPath),
+                        filename: getSafePdfFilename(detail, fullPath),
                         path: fullPath,
                         contentType: 'application/pdf'
                     });
@@ -121,11 +175,10 @@ export const sendBrochure = async (req, res) => {
         // Process video attachments
         for (const videoPath of videoPaths) {
             try {
-                const fullPath = path.join(__dirname, '..', 'public', videoPath);
-                if (fs.existsSync(fullPath)) {
-                    const ext = path.extname(videoPath).toLowerCase();
+                const fullPath = resolvePublicAssetPath(videoPath);
+                if (fullPath && fs.existsSync(fullPath)) {
                     attachments.push({
-                        filename: path.basename(videoPath),
+                        filename: path.basename(fullPath),
                         path: fullPath,
                         contentType: getContentType(videoPath),
                         encoding: 'base64' // Important for binary files
