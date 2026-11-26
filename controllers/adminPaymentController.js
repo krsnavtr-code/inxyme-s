@@ -325,7 +325,6 @@ export const createAdminPayment = async (req, res) => {
       paymentDate = new Date(),
       status = 'completed',
       gstRate = 18,
-      gstInclusive = true,
       companyGstin = '',
       studentGstin = '',
       notes = '',
@@ -454,8 +453,20 @@ export const createAdminPayment = async (req, res) => {
       paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
       status,
       invoiceNumber,
-      gstRate: Number(gstRate ?? 18),
-      gstInclusive: gstInclusive !== false && gstInclusive !== 'false',
+      gstRate: Math.min(
+        100,
+        Math.max(
+          0,
+          gstRate === '' ||
+            gstRate === null ||
+            gstRate === undefined ||
+            !Number.isFinite(Number(gstRate))
+            ? 18
+            : Number(gstRate)
+        )
+      ),
+      // Course fees and manual payments are always GST-inclusive; never charge extra GST on top
+      gstInclusive: true,
       companyGstin: String(companyGstin || '').trim().toUpperCase(),
       studentGstin: String(studentGstin || '').trim().toUpperCase(),
       notes: String(notes || '').trim(),
