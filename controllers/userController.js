@@ -1,11 +1,18 @@
 import User from "../model/User.js";
+import Course from "../model/course.model.js";
 import { buildLmsInviteEmailContent } from "../utils/invoicePdfGenerator.js";
 import { sendBrandedEmailWithRecord } from "../utils/brandedEmailSender.js";
+import {
+  computeDiscountFromOfferedPrice,
+  resolveCourseBasePrice,
+} from "../utils/userDiscountPricing.js";
 
 // Get all users
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().populate("enrolledCourses", "title thumbnail slug price").sort({ createdAt: -1 });
+    const users = await User.find()
+      .populate("enrolledCourses", "title thumbnail slug price originalPrice isFree")
+      .sort({ createdAt: -1 });
     res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -34,7 +41,10 @@ export const getLmsUsers = async (req, res) => {
 // Get user by ID
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).populate("enrolledCourses", "title thumbnail slug price");
+    const user = await User.findById(req.params.id).populate(
+      "enrolledCourses",
+      "title thumbnail slug price originalPrice isFree"
+    );
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -172,25 +182,21 @@ export const updateUserLMSStatus = async (req, res) => {
   }
 };
 
-// Update user discount
+// Update user discount via offered course price (with course price snapshot) or legacy percentage
 export const updateUserDiscount = async (req, res) => {
   try {
-    const { discount } = req.body;
+    const {
+      discount,
+      courseId = null,
+      courseTitle = "",
+      coursePrice: clientCoursePrice = null,
+      offeredPrice = null,
+      action = "set",
+      clear = false,
+      clearAll = false,
+    } = req.body;
 
-    // Validate discount value
-    if (typeof discount !== "number" || discount < 0 || discount > 100) {
-      return res.status(400).json({
-        success: false,
-        message: "Discount must be a number between 0 and 100",
-      });
-    }
-
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { discount },
-      { new: true, runValidators: true },
-    ).select("-password");
-
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -198,10 +204,204 @@ export const updateUserDiscount = async (req, res) => {
       });
     }
 
+    const shouldClear = clear === true || action === "clear" || action === "remove";
+
+    if (shouldClear) {
+      if (clearAll || (!courseId && !courseTitle)) {
+        user.discount = 0;
+        user.discountCourseId = null;
+        user.discountCourseTitle = "";
+        user.discountCoursePrice = 0;
+        user.discountedCoursePrice = null;
+        user.discountAmount = 0;
+        user.discountUpdatedAt = new Date();
+        user.courseDiscounts = [];
+      } else {
+        const targetId = courseId ? String(courseId) : "";
+        const targetTitle = String(courseTitle || "").trim().toLowerCase();
+        user.courseDiscounts = (user.courseDiscounts || []).filter((entry) => {
+          const entryId = entry?.courseId ? String(entry.courseId) : "";
+          const entryTitle = String(entry?.courseTitle || "").trim().toLowerCase();
+          if (targetId && entryId === targetId) return false;
+          if (targetTitle && entryTitle === targetTitle) return false;
+          return true;
+        });
+
+        const nextPrimary = user.courseDiscounts[user.courseDiscounts.length - 1] || null;
+        if (nextPrimary) {
+          user.discount = Number(nextPrimary.discountPercent || 0);
+          user.discountCourseId = nextPrimary.courseId || null;
+          user.discountCourseTitle = nextPrimary.courseTitle || "";
+          user.discountCoursePrice = Number(nextPrimary.originalCoursePrice || 0);
+          user.discountedCoursePrice = Number(nextPrimary.offeredPrice || 0);
+          user.discountAmount = Number(nextPrimary.discountAmount || 0);
+          user.discountUpdatedAt = nextPrimary.updatedAt || new Date();
+        } else {
+          user.discount = 0;
+          user.discountCourseId = null;
+          user.discountCourseTitle = "";
+          user.discountCoursePrice = 0;
+          user.discountedCoursePrice = null;
+          user.discountAmount = 0;
+          user.discountUpdatedAt = new Date();
+        }
+      }
+
+      await user.save();
+      const updatedUser = await User.findById(user._id)
+        .select("-password")
+        .populate("enrolledCourses", "title thumbnail slug price originalPrice isFree");
+
+      return res.status(200).json({
+        success: true,
+        message: "Discount cleared successfully",
+        data: updatedUser,
+      });
+    }
+
+    const hasOfferedPrice =
+      offeredPrice !== undefined && offeredPrice !== null && offeredPrice !== "";
+
+    if (hasOfferedPrice) {
+      const numericOfferedPrice = Number(offeredPrice);
+      if (!Number.isFinite(numericOfferedPrice) || numericOfferedPrice < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Offered price must be a valid non-negative amount",
+        });
+      }
+
+      let resolvedCourse = null;
+      if (courseId) {
+        resolvedCourse = await Course.findById(courseId).select(
+          "title price originalPrice isFree"
+        );
+        if (!resolvedCourse) {
+          return res.status(404).json({
+            success: false,
+            message: "Selected course not found",
+          });
+        }
+      }
+
+      const dbCoursePrice = resolvedCourse ? resolveCourseBasePrice(resolvedCourse) : 0;
+      const fallbackCoursePrice =
+        clientCoursePrice !== undefined &&
+        clientCoursePrice !== null &&
+        clientCoursePrice !== ""
+          ? Number(clientCoursePrice)
+          : 0;
+
+      // Always snapshot the live database course price at save time when available;
+      // use admin-provided base price only for custom programs or 0-priced catalog entries.
+      const snapshotCoursePrice = dbCoursePrice > 0 ? dbCoursePrice : fallbackCoursePrice;
+
+      if (!Number.isFinite(snapshotCoursePrice) || snapshotCoursePrice <= 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "A valid positive course price is required to snapshot pricing and calculate discount percentage",
+        });
+      }
+
+      if (numericOfferedPrice > snapshotCoursePrice) {
+        return res.status(400).json({
+          success: false,
+          message: `Offered price (₹${numericOfferedPrice.toLocaleString("en-IN")}) cannot exceed course price (₹${snapshotCoursePrice.toLocaleString("en-IN")})`,
+        });
+      }
+
+      const resolvedTitle = String(
+        resolvedCourse?.title || courseTitle || "Course Program"
+      ).trim();
+
+      const {
+        originalCoursePrice,
+        offeredPrice: finalOfferedPrice,
+        discountAmount,
+        discountPercent,
+      } = computeDiscountFromOfferedPrice(snapshotCoursePrice, numericOfferedPrice);
+
+      const now = new Date();
+      user.discount = discountPercent;
+      user.discountCourseId = resolvedCourse?._id || null;
+      user.discountCourseTitle = resolvedTitle;
+      user.discountCoursePrice = originalCoursePrice;
+      user.discountedCoursePrice = finalOfferedPrice;
+      user.discountAmount = discountAmount;
+      user.discountUpdatedAt = now;
+
+      const existingEntries = Array.isArray(user.courseDiscounts)
+        ? [...user.courseDiscounts]
+        : [];
+      const targetId = resolvedCourse?._id ? String(resolvedCourse._id) : "";
+      const normalizedTitle = resolvedTitle.toLowerCase();
+
+      const matchIndex = existingEntries.findIndex((item) => {
+        const itemId = item?.courseId ? String(item.courseId) : "";
+        const itemTitle = String(item?.courseTitle || "").trim().toLowerCase();
+        if (targetId && itemId) return itemId === targetId;
+        if (!targetId && !itemId && normalizedTitle) return itemTitle === normalizedTitle;
+        return Boolean(targetId && itemId === targetId);
+      });
+
+      const snapshotRecord = {
+        courseId: resolvedCourse?._id || null,
+        courseTitle: resolvedTitle,
+        originalCoursePrice,
+        offeredPrice: finalOfferedPrice,
+        discountAmount,
+        discountPercent,
+        updatedAt: now,
+      };
+
+      if (matchIndex >= 0) {
+        existingEntries[matchIndex] = snapshotRecord;
+      } else {
+        existingEntries.push(snapshotRecord);
+      }
+      user.courseDiscounts = existingEntries;
+
+      await user.save();
+      const updatedUser = await User.findById(user._id)
+        .select("-password")
+        .populate("enrolledCourses", "title thumbnail slug price originalPrice isFree");
+
+      return res.status(200).json({
+        success: true,
+        message: "Student course price & calculated discount saved successfully",
+        data: updatedUser,
+      });
+    }
+
+    // Legacy fallback: explicit percentage update
+    if (typeof discount !== "number" || discount < 0 || discount > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount must be a number between 0 and 100",
+      });
+    }
+
+    user.discount = discount;
+    user.discountUpdatedAt = new Date();
+    if (discount === 0) {
+      user.discountCourseId = null;
+      user.discountCourseTitle = "";
+      user.discountCoursePrice = 0;
+      user.discountedCoursePrice = null;
+      user.discountAmount = 0;
+      user.courseDiscounts = [];
+    }
+
+    await user.save();
+    const updatedUser = await User.findById(user._id)
+      .select("-password")
+      .populate("enrolledCourses", "title thumbnail slug price originalPrice isFree");
+
     res.status(200).json({
       success: true,
       message: "Discount updated successfully",
-      data: user,
+      data: updatedUser,
     });
   } catch (error) {
     console.error("Error updating discount:", error);

@@ -51,6 +51,21 @@ const paymentLinkSchema = new mongoose.Schema(
       ref: 'Course',
       default: null,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    totalCourseFee: {
+      type: Number,
+      min: [0, 'Total course fee cannot be negative'],
+      default: null,
+    },
+    discountAmount: {
+      type: Number,
+      min: [0, 'Discount amount cannot be negative'],
+      default: 0,
+    },
     status: {
       type: String,
       enum: ['active', 'paid', 'expired', 'cancelled'],

@@ -18,6 +18,12 @@ import {
   generatePaymentInvoicePdfBuffer,
   getInvoiceFilename,
 } from '../utils/invoicePdfGenerator.js';
+import {
+  USER_DISCOUNT_FIELDS,
+  resolvePaymentPricingForUser,
+} from '../utils/userDiscountPricing.js';
+
+const USER_POPULATE_SELECT = `fullname email phone address studentId role ${USER_DISCOUNT_FIELDS}`;
 
 /**
  * Generate a unique invoice number like INV-202611-4821
@@ -235,8 +241,8 @@ export const getAllPayments = async (req, res) => {
       limit: Math.min(100, Math.max(1, parseInt(limit, 10) || 20)),
       sort,
       populate: [
-        { path: 'userId', select: 'fullname email phone address studentId role' },
-        { path: 'courseId', select: 'title price slug' },
+        { path: 'userId', select: USER_POPULATE_SELECT },
+        { path: 'courseId', select: 'title price originalPrice isFree slug' },
       ],
     };
 
@@ -332,7 +338,7 @@ export const createAdminPayment = async (req, res) => {
 
     let selectedUser = null;
     if (userId) {
-      selectedUser = await User.findById(userId).select('fullname email phone address discount');
+      selectedUser = await User.findById(userId).select(USER_POPULATE_SELECT);
       if (!selectedUser) {
         return res.status(404).json({
           success: false,
@@ -380,29 +386,17 @@ export const createAdminPayment = async (req, res) => {
       });
     }
 
-    const courseFallbackPrice = selectedCourse
-      ? selectedCourse.isFree
-        ? 0
-        : Number(selectedCourse.price ?? selectedCourse.originalPrice ?? 0)
-      : null;
-
-    const numericTotalFee =
-      totalCourseFee !== null && totalCourseFee !== '' && !Number.isNaN(Number(totalCourseFee))
-        ? Math.max(0, Number(totalCourseFee))
-        : courseFallbackPrice;
-
-    const hasExplicitDiscount =
-      discountAmount !== undefined &&
-      discountAmount !== null &&
-      discountAmount !== '' &&
-      !Number.isNaN(Number(discountAmount));
-
-    const userDiscountPct = Math.min(100, Math.max(0, Number(selectedUser?.discount || 0)));
-    const numericDiscount = hasExplicitDiscount
-      ? Math.max(0, Number(discountAmount))
-      : numericTotalFee > 0 && userDiscountPct > 0
-        ? Number(((numericTotalFee * userDiscountPct) / 100).toFixed(2))
-        : 0;
+    const {
+      totalCourseFee: numericTotalFee,
+      discountAmount: numericDiscount,
+    } = resolvePaymentPricingForUser({
+      user: selectedUser,
+      courseObj: selectedCourse,
+      courseId: selectedCourse?._id || courseId || null,
+      courseTitle: finalCourseTitle,
+      explicitTotalFee: totalCourseFee,
+      explicitDiscountAmount: discountAmount,
+    });
 
     const hasExplicitPreviousPaid =
       previouslyPaidAmount !== undefined &&
@@ -505,7 +499,7 @@ export const createAdminPayment = async (req, res) => {
     }
 
     const populatedPayment = await DirectPayment.findById(payment._id)
-      .populate('userId', 'fullname email phone address studentId role discount')
+      .populate('userId', USER_POPULATE_SELECT)
       .populate('courseId', 'title price originalPrice isFree slug');
 
     res.status(201).json({
@@ -529,8 +523,8 @@ export const createAdminPayment = async (req, res) => {
 export const getPaymentById = async (req, res) => {
   try {
     let payment = await DirectPayment.findById(req.params.id)
-      .populate('userId', 'fullname email phone address studentId role')
-      .populate('courseId', 'title price slug')
+      .populate('userId', USER_POPULATE_SELECT)
+      .populate('courseId', 'title price originalPrice isFree slug')
       .populate('createdBy', 'fullname email');
 
     if (!payment) {
@@ -788,7 +782,7 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
     await payment.save();
 
     const populatedPayment = await DirectPayment.findById(payment._id)
-      .populate('userId', 'fullname email phone address studentId role discount')
+      .populate('userId', USER_POPULATE_SELECT)
       .populate('courseId', 'title price originalPrice isFree slug');
 
     res.status(200).json({
@@ -812,7 +806,7 @@ export const sendPaymentInvoiceEmail = async (req, res) => {
 export const getPendingPaymentAlertPreview = async (req, res) => {
   try {
     const payment = await DirectPayment.findById(req.params.id)
-      .populate('userId', 'fullname email phone address studentId discount')
+      .populate('userId', USER_POPULATE_SELECT)
       .populate('courseId', 'title price');
 
     if (!payment) {
@@ -919,7 +913,7 @@ export const sendPendingPaymentAlertEmail = async (req, res) => {
     await payment.save();
 
     const populatedPayment = await DirectPayment.findById(payment._id)
-      .populate('userId', 'fullname email phone address studentId role discount')
+      .populate('userId', USER_POPULATE_SELECT)
       .populate('courseId', 'title price originalPrice isFree slug');
 
     res.status(200).json({

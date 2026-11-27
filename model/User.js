@@ -181,6 +181,76 @@ const userSchema = new mongoose.Schema(
       min: 0,
       max: 100,
     },
+    discountCourseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      default: null,
+    },
+    discountCourseTitle: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    // Course fee snapshot captured at the exact time offered price/discount was saved
+    discountCoursePrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Agreed final course fee (in INR) at which the course is offered to the student
+    discountedCoursePrice: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    discountUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+    courseDiscounts: [
+      {
+        courseId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Course",
+          default: null,
+        },
+        courseTitle: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        originalCoursePrice: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        offeredPrice: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        discountAmount: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        discountPercent: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 100,
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     referralCode: {
       type: String,
       sparse: true,

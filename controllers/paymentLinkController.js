@@ -61,6 +61,9 @@ export const createPaymentLink = async (req, res) => {
       studentPhone = '',
       course = '',
       courseId = null,
+      userId = null,
+      totalCourseFee = null,
+      discountAmount = 0,
       expiresInDays = null,
       expiresAt: customExpiresAt = null,
     } = req.body;
@@ -100,6 +103,15 @@ export const createPaymentLink = async (req, res) => {
       studentPhone: studentPhone.trim(),
       course: course.trim(),
       courseId: courseId || null,
+      userId: userId || null,
+      totalCourseFee:
+        totalCourseFee !== null && totalCourseFee !== '' && !Number.isNaN(Number(totalCourseFee))
+          ? Math.max(0, Number(totalCourseFee))
+          : null,
+      discountAmount:
+        discountAmount !== undefined && discountAmount !== null && !Number.isNaN(Number(discountAmount))
+          ? Math.max(0, Number(discountAmount))
+          : 0,
       expiresAt,
       createdBy: req.user?._id || null,
       createdByName: req.user?.fullname || req.user?.name || 'Admin',
@@ -589,16 +601,22 @@ export const verifyPaymentLinkPayment = async (req, res) => {
 
     // Create DirectPayment document for bookkeeping
     const directPayment = new DirectPayment({
+      userId: paymentLink.userId || null,
       name: payerName,
       email: payerEmail || 'guest@inxyme.com',
       phone: payerPhone || 'Not provided',
       course: paymentLink.course || paymentLink.title,
+      courseId: paymentLink.courseId || null,
+      totalCourseFee:
+        paymentLink.totalCourseFee !== undefined ? paymentLink.totalCourseFee : null,
+      discountAmount: Number(paymentLink.discountAmount || 0),
       address,
       paymentAmount: paymentLink.amount,
       paymentId,
       orderId,
       status: 'completed',
       paymentMethod: 'razorpay',
+      source: 'payment_link',
       paymentDate: new Date(),
     });
 

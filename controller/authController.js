@@ -5,6 +5,10 @@ import catchAsync from "../utils/catchAsync.js";
 import crypto from "crypto";
 import { sendEmail } from "../utils/email.js";
 import LoginRecord from "../model/LoginRecord.js";
+import {
+  USER_DISCOUNT_FIELDS,
+  pickUserPricingFields,
+} from "../utils/userDiscountPricing.js";
 
 // Helper function to parse user agent (simple version without external dependency)
 const parseUserAgent = (userAgentString) => {
@@ -363,6 +367,7 @@ export const login = catchAsync(async (req, res, next) => {
     address: user.address || "",
     adminRoleId: user.adminRoleId,
     adminPermissions: user.adminPermissions,
+    ...pickUserPricingFields(user),
   };
 
   const responseData = {
@@ -489,6 +494,7 @@ export const verifyAdminOTP = catchAsync(async (req, res, next) => {
       address: user.address || "",
       adminRoleId: user.adminRoleId,
       adminPermissions: formatAdminPermissions(user.adminPermissions),
+      ...pickUserPricingFields(user),
     };
 
     res.json({
@@ -512,7 +518,7 @@ export const getUserProfile = catchAsync(async (req, res, next) => {
     // Get user from the database to ensure we have the latest data
     // Use only inclusion to avoid MongoDB error with mixed inclusion/exclusion
     const user = await User.findById(req.user._id || req.user.id).select(
-      "fullname email role isApproved phone address adminRoleId adminPermissions discount createdAt updatedAt isActive",
+      `fullname email role isApproved phone address adminRoleId adminPermissions ${USER_DISCOUNT_FIELDS} createdAt updatedAt isActive`,
     );
 
     if (!user) {
@@ -533,7 +539,7 @@ export const getUserProfile = catchAsync(async (req, res, next) => {
         address: user.address || "",
         adminRoleId: user.adminRoleId,
         adminPermissions: formatAdminPermissions(user.adminPermissions),
-        discount: user.discount || 0,
+        ...pickUserPricingFields(user),
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
