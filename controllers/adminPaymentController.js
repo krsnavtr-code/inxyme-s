@@ -219,21 +219,42 @@ export const getAllPayments = async (req, res) => {
       query.invoiceSent = { $ne: true };
     }
 
-    if (userId) {
-      query.userId = userId;
+    const andConditions = [];
+
+    if (userId && userId !== 'all') {
+      const cleanUserId = String(userId).trim();
+      if (/^[a-f\d]{24}$/i.test(cleanUserId)) {
+        const targetUser = await User.findById(cleanUserId).select('email').lean();
+        const studentMatch = [{ userId: cleanUserId }];
+        const normalizedEmail = String(targetUser?.email || '').trim().toLowerCase();
+        if (normalizedEmail) {
+          studentMatch.push({ email: normalizedEmail });
+        }
+        andConditions.push({ $or: studentMatch });
+      } else {
+        query._id = null;
+      }
     }
 
     if (search && search.trim()) {
       const s = search.trim();
-      query.$or = [
-        { name: { $regex: s, $options: 'i' } },
-        { email: { $regex: s, $options: 'i' } },
-        { phone: { $regex: s, $options: 'i' } },
-        { course: { $regex: s, $options: 'i' } },
-        { invoiceNumber: { $regex: s, $options: 'i' } },
-        { transactionId: { $regex: s, $options: 'i' } },
-        { paymentId: { $regex: s, $options: 'i' } },
-      ];
+      andConditions.push({
+        $or: [
+          { name: { $regex: s, $options: 'i' } },
+          { email: { $regex: s, $options: 'i' } },
+          { phone: { $regex: s, $options: 'i' } },
+          { course: { $regex: s, $options: 'i' } },
+          { invoiceNumber: { $regex: s, $options: 'i' } },
+          { transactionId: { $regex: s, $options: 'i' } },
+          { paymentId: { $regex: s, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (andConditions.length === 1) {
+      query.$or = andConditions[0].$or;
+    } else if (andConditions.length > 1) {
+      query.$and = andConditions;
     }
 
     const options = {
