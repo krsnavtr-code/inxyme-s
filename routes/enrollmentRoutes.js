@@ -4,6 +4,7 @@ import {
   getMyEnrollments,
   getUserEnrollmentsAdmin,
   adminEnrollUser,
+  adminUnenrollUser,
   updateEnrollmentStatus,
   getPendingEnrollments,
   updatePendingToActive,
@@ -30,6 +31,9 @@ router.route("/user/:userId").get(protect, admin, getUserEnrollmentsAdmin);
 
 // Admin route for enrolling users in courses
 router.route("/admin-enroll").post(protect, admin, adminEnrollUser);
+
+// Admin route for de-enrolling users from courses
+router.route("/admin-unenroll").post(protect, admin, adminUnenrollUser);
 
 // Get all enrollments (admin only)
 router.route("/all").get(protect, admin, getAllEnrollments);

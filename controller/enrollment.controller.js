@@ -214,6 +214,168 @@ export const adminEnrollUser = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Admin de-enrolls a user from one or multiple courses
+// @route   POST /api/enrollments/admin-unenroll
+// @access  Private/Admin
+export const adminUnenrollUser = asyncHandler(async (req, res) => {
+  const { userId, courseId, courseIds, enrollmentId } = req.body;
+
+  if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+    res.status(400);
+    throw new Error("Valid userId is required");
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  const rawIds = Array.isArray(courseIds) ? courseIds : [courseId];
+  const targetCourseIds = new Set(
+    rawIds
+      .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => String(id))
+  );
+
+  let targetEnrollmentDoc = null;
+  if (
+    enrollmentId &&
+    !String(enrollmentId).startsWith("user_course_") &&
+    mongoose.Types.ObjectId.isValid(String(enrollmentId))
+  ) {
+    targetEnrollmentDoc = await Enrollment.findById(enrollmentId);
+    if (targetEnrollmentDoc) {
+      const docCourseId = (
+        targetEnrollmentDoc.course || targetEnrollmentDoc.courseId
+      )?.toString();
+      if (docCourseId && mongoose.Types.ObjectId.isValid(docCourseId)) {
+        targetCourseIds.add(docCourseId);
+      }
+    }
+  }
+
+  if (targetCourseIds.size === 0 && !targetEnrollmentDoc) {
+    res.status(400);
+    throw new Error("Please provide a valid course or enrollment to de-enroll");
+  }
+
+  const courseIdList = Array.from(targetCourseIds);
+  const courseObjectIds = courseIdList.map(
+    (id) => new mongoose.Types.ObjectId(id)
+  );
+
+  const ownerConditions = [{ user: user._id }];
+  if (user.email) {
+    const cleanEmail = user.email.toLowerCase().trim();
+    ownerConditions.push({ "guestInfo.email": cleanEmail });
+    ownerConditions.push({ "contactInfo.email": cleanEmail });
+    ownerConditions.push({ email: cleanEmail });
+  }
+
+  const matchConditions = [];
+  if (targetEnrollmentDoc) {
+    matchConditions.push({ _id: targetEnrollmentDoc._id });
+  }
+  if (courseIdList.length > 0) {
+    matchConditions.push({
+      $and: [
+        { $or: ownerConditions },
+        {
+          $or: [
+            { course: { $in: courseObjectIds } },
+            { courseId: { $in: courseIdList } },
+          ],
+        },
+      ],
+    });
+  }
+
+  const matchingEnrollments = await Enrollment.find({ $or: matchConditions });
+  const batchIdsToClean = new Set(
+    matchingEnrollments
+      .map((e) => e.batch?.toString())
+      .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
+  );
+
+  let deletedCount = 0;
+  if (matchingEnrollments.length > 0) {
+    const idsToDelete = matchingEnrollments.map((e) => e._id);
+    const delRes = await Enrollment.deleteMany({ _id: { $in: idsToDelete } });
+    deletedCount = delRes.deletedCount || 0;
+  }
+
+  let removedFromUserArray = false;
+  if (courseIdList.length > 0) {
+    removedFromUserArray =
+      Array.isArray(user.enrolledCourses) &&
+      user.enrolledCourses.some((c) =>
+        courseIdList.includes(String(c?._id || c))
+      );
+
+    const Batch = (await import("../model/batch.model.js")).default;
+    const courseBatches = await Batch.find({
+      course: { $in: courseObjectIds },
+      students: user._id,
+    }).select("_id");
+    courseBatches.forEach((b) => batchIdsToClean.add(b._id.toString()));
+
+    const batchObjectIds = Array.from(batchIdsToClean).map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
+
+    const pullUpdate = {
+      $pull: {
+        enrolledCourses: { $in: [...courseObjectIds, ...courseIdList] },
+      },
+    };
+    if (batchObjectIds.length > 0) {
+      pullUpdate.$pull.enrolledBatches = { $in: batchObjectIds };
+    }
+    await User.findByIdAndUpdate(user._id, pullUpdate);
+
+    for (const bId of batchIdsToClean) {
+      const batch = await Batch.findById(bId);
+      if (batch) {
+        const hadStudent = batch.students?.some(
+          (s) => s.toString() === user._id.toString()
+        );
+        const hadBatchEnrollment = matchingEnrollments.some(
+          (e) => e.batch?.toString() === bId
+        );
+        const updateDoc = { $pull: { students: user._id } };
+        if (hadStudent || hadBatchEnrollment) {
+          updateDoc.$set = {
+            currentEnrollment: Math.max(0, (batch.currentEnrollment || 1) - 1),
+          };
+        }
+        await Batch.updateOne({ _id: bId }, updateDoc);
+      }
+    }
+
+    if (deletedCount > 0) {
+      for (const cObjId of courseObjectIds) {
+        await Course.updateOne(
+          { _id: cObjId, enrollmentCount: { $gt: 0 } },
+          { $inc: { enrollmentCount: -1 } }
+        ).catch(() => {});
+      }
+    }
+  }
+
+  if (deletedCount === 0 && !removedFromUserArray) {
+    res.status(404);
+    throw new Error("User is not currently enrolled in the selected course");
+  }
+
+  res.json({
+    success: true,
+    message: "User de-enrolled from course successfully",
+    deletedCount,
+    removedCourseIds: courseIdList,
+  });
+});
+
 // @desc    Get user's enrollments
 // @route   GET /api/enrollments/my-enrollments
 // @access  Private
