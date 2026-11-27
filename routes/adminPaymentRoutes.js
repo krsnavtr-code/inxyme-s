@@ -6,6 +6,7 @@ import {
   getStudentPaymentHistory,
   createAdminPayment,
   getPaymentById,
+  updateAdminPayment,
   updatePaymentStatus,
   getPaymentInvoicePdf,
   getPaymentInvoicePreview,
@@ -80,6 +81,32 @@ router.post('/:id/send-pending-alert', protect, admin, sendPendingPaymentAlertEm
 // @desc    Get payment by ID (Admin only)
 // @access  Private/Admin
 router.get('/:id', protect, admin, getPaymentById);
+
+// @route   PUT /api/admin/payments/:id
+// @desc    Update payment details (Admin only)
+// @access  Private/Admin
+router.put(
+  '/:id',
+  protect,
+  admin,
+  [
+    body('paymentAmount')
+      .optional()
+      .isNumeric()
+      .withMessage('Payment amount must be a number')
+      .isFloat({ gt: 0 })
+      .withMessage('Payment amount must be greater than 0'),
+    body('paymentMethod')
+      .optional()
+      .isIn(['razorpay', 'upi', 'bank_transfer', 'cash', 'card', 'cheque', 'other'])
+      .withMessage('Invalid payment method'),
+    body('status')
+      .optional()
+      .isIn(['pending', 'completed', 'failed', 'refunded', 'cancelled'])
+      .withMessage('Invalid payment status'),
+  ],
+  updateAdminPayment
+);
 
 // @route   PUT /api/admin/payments/:id/status
 // @desc    Update payment status (Admin only)

@@ -92,7 +92,13 @@ const ensurePaymentInvoiceNumber = async (payment) => {
  * Fetch completed payment history for a student (matched by userId or email)
  * and compute previously paid totals for a specific course.
  */
-const fetchStudentCompletedHistory = async ({ userId = null, email = '', courseId = null, course = '' }) => {
+const fetchStudentCompletedHistory = async ({
+  userId = null,
+  email = '',
+  courseId = null,
+  course = '',
+  excludePaymentId = null,
+}) => {
   const orStudent = [];
   if (userId) orStudent.push({ userId });
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -107,10 +113,15 @@ const fetchStudentCompletedHistory = async ({ userId = null, email = '', courseI
     };
   }
 
-  const completedPayments = await DirectPayment.find({
+  const queryFilter = {
     status: 'completed',
     $or: orStudent,
-  })
+  };
+  if (excludePaymentId && /^[a-f\d]{24}$/i.test(String(excludePaymentId))) {
+    queryFilter._id = { $ne: String(excludePaymentId) };
+  }
+
+  const completedPayments = await DirectPayment.find(queryFilter)
     .select(
       '_id invoiceNumber courseId course paymentAmount totalCourseFee discountAmount balanceDue paymentMethod paymentDate createdAt installmentLabel status'
     )
@@ -577,6 +588,265 @@ export const getPaymentById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch payment',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// @desc    Update an existing payment record (Admin only)
+// @route   PUT /api/admin/payments/:id
+// @access  Private/Admin
+export const updateAdminPayment = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: errors.array()[0]?.msg || 'Validation failed',
+        errors: errors.array(),
+      });
+    }
+
+    const existingPayment = await DirectPayment.findById(req.params.id);
+    if (!existingPayment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment record not found',
+      });
+    }
+
+    const {
+      userId,
+      name,
+      email,
+      phone,
+      address,
+      courseId,
+      course,
+      paymentAmount,
+      totalCourseFee,
+      discountAmount,
+      previouslyPaidAmount,
+      balanceDue,
+      installmentLabel,
+      paymentMethod,
+      transactionId,
+      paymentDate,
+      status,
+      gstRate,
+      gstInclusive,
+      companyGstin,
+      studentGstin,
+      notes,
+    } = req.body;
+
+    const effectiveUserId =
+      userId !== undefined ? userId || null : existingPayment.userId || null;
+
+    let selectedUser = null;
+    if (effectiveUserId) {
+      selectedUser = await User.findById(effectiveUserId).select(USER_POPULATE_SELECT);
+      if (!selectedUser) {
+        return res.status(404).json({
+          success: false,
+          message: 'Selected student not found in user database',
+        });
+      }
+    }
+
+    const effectiveCourseId =
+      courseId !== undefined ? courseId || null : existingPayment.courseId || null;
+
+    let selectedCourse = null;
+    if (effectiveCourseId) {
+      selectedCourse = await Course.findById(effectiveCourseId).select(
+        'title price originalPrice isFree'
+      );
+      if (!selectedCourse) {
+        return res.status(404).json({
+          success: false,
+          message: 'Selected course not found',
+        });
+      }
+    }
+
+    const finalName = String(
+      name !== undefined ? name : selectedUser?.fullname || existingPayment.name || ''
+    ).trim();
+    const finalEmail = String(
+      email !== undefined ? email : selectedUser?.email || existingPayment.email || ''
+    )
+      .trim()
+      .toLowerCase();
+    const finalPhone = String(
+      phone !== undefined ? phone : existingPayment.phone || selectedUser?.phone || 'Not provided'
+    ).trim();
+    const finalAddress = String(
+      address !== undefined
+        ? address
+        : existingPayment.address || selectedUser?.address || 'Not provided'
+    ).trim();
+    const finalCourseTitle = String(
+      course !== undefined
+        ? course
+        : selectedCourse?.title || existingPayment.course || ''
+    ).trim();
+
+    if (!finalName || !finalEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student name and email are required',
+      });
+    }
+
+    if (!finalCourseTitle) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course name is required',
+      });
+    }
+
+    const numericPaid =
+      paymentAmount !== undefined ? Number(paymentAmount) : Number(existingPayment.paymentAmount);
+    if (Number.isNaN(numericPaid) || numericPaid <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment amount must be greater than 0',
+      });
+    }
+
+    const { totalCourseFee: numericTotalFee, discountAmount: numericDiscount } =
+      resolvePaymentPricingForUser({
+        user: selectedUser,
+        courseObj: selectedCourse,
+        courseId: selectedCourse?._id || effectiveCourseId || null,
+        courseTitle: finalCourseTitle,
+        explicitTotalFee:
+          totalCourseFee !== undefined ? totalCourseFee : existingPayment.totalCourseFee,
+        explicitDiscountAmount:
+          discountAmount !== undefined ? discountAmount : existingPayment.discountAmount,
+      });
+
+    const hasExplicitPreviousPaid =
+      previouslyPaidAmount !== undefined &&
+      previouslyPaidAmount !== null &&
+      previouslyPaidAmount !== '' &&
+      !Number.isNaN(Number(previouslyPaidAmount));
+
+    let numericPreviouslyPaid = 0;
+    if (hasExplicitPreviousPaid) {
+      numericPreviouslyPaid = Math.max(0, Number(previouslyPaidAmount));
+    } else {
+      const priorHistory = await fetchStudentCompletedHistory({
+        userId: selectedUser?._id || null,
+        email: finalEmail,
+        courseId: selectedCourse?._id || null,
+        course: finalCourseTitle,
+        excludePaymentId: existingPayment._id,
+      });
+      numericPreviouslyPaid = priorHistory.previouslyPaidForCourse;
+    }
+
+    const resolvedBalance =
+      balanceDue !== undefined &&
+      balanceDue !== null &&
+      balanceDue !== '' &&
+      !Number.isNaN(Number(balanceDue))
+        ? Math.max(0, Number(balanceDue))
+        : numericTotalFee !== null
+          ? Number(
+              Math.max(
+                0,
+                numericTotalFee - numericDiscount - numericPreviouslyPaid - numericPaid
+              ).toFixed(2)
+            )
+          : 0;
+
+    await ensurePaymentInvoiceNumber(existingPayment);
+
+    const nextCleanTxnId =
+      transactionId !== undefined
+        ? String(transactionId || '').trim()
+        : existingPayment.transactionId || '';
+
+    existingPayment.userId = selectedUser?._id || null;
+    existingPayment.name = finalName;
+    existingPayment.email = finalEmail;
+    existingPayment.phone = finalPhone || 'Not provided';
+    existingPayment.address = finalAddress || 'Not provided';
+    existingPayment.course = finalCourseTitle;
+    existingPayment.courseId = selectedCourse?._id || null;
+    existingPayment.paymentAmount = numericPaid;
+    existingPayment.totalCourseFee = numericTotalFee;
+    existingPayment.discountAmount = numericDiscount;
+    existingPayment.previouslyPaidAmount = numericPreviouslyPaid;
+    existingPayment.balanceDue = resolvedBalance;
+
+    if (installmentLabel !== undefined) {
+      existingPayment.installmentLabel =
+        String(installmentLabel || 'Full Course Fee').trim();
+    }
+    if (paymentMethod !== undefined) {
+      existingPayment.paymentMethod = paymentMethod;
+    }
+    existingPayment.transactionId = nextCleanTxnId;
+    if (nextCleanTxnId) {
+      existingPayment.paymentId = nextCleanTxnId;
+    } else if (!existingPayment.paymentId) {
+      existingPayment.paymentId = existingPayment.invoiceNumber;
+    }
+    if (paymentDate !== undefined && paymentDate) {
+      existingPayment.paymentDate = new Date(paymentDate);
+    }
+    if (status !== undefined) {
+      existingPayment.status = status;
+    }
+    if (gstRate !== undefined) {
+      existingPayment.gstRate = Math.min(
+        100,
+        Math.max(
+          0,
+          gstRate === '' || gstRate === null || !Number.isFinite(Number(gstRate))
+            ? 18
+            : Number(gstRate)
+        )
+      );
+    }
+    if (gstInclusive !== undefined) {
+      existingPayment.gstInclusive = Boolean(gstInclusive);
+    }
+    if (companyGstin !== undefined) {
+      existingPayment.companyGstin = String(companyGstin || '').trim().toUpperCase();
+    }
+    if (studentGstin !== undefined) {
+      existingPayment.studentGstin = String(studentGstin || '').trim().toUpperCase();
+    }
+    if (notes !== undefined) {
+      existingPayment.notes = String(notes || '').trim();
+    }
+
+    await existingPayment.save();
+
+    const populatedPayment = await DirectPayment.findById(existingPayment._id)
+      .populate('userId', USER_POPULATE_SELECT)
+      .populate('courseId', 'title price originalPrice isFree slug');
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment record updated successfully',
+      payment: populatedPayment,
+    });
+  } catch (error) {
+    console.error('Error updating admin payment:', error);
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment record not found',
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update payment record',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
