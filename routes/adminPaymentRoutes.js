@@ -7,6 +7,7 @@ import {
   createAdminPayment,
   getPaymentById,
   updateAdminPayment,
+  deleteAdminPayment,
   updatePaymentStatus,
   getPaymentInvoicePdf,
   getPaymentInvoicePreview,
@@ -107,6 +108,11 @@ router.put(
   ],
   updateAdminPayment
 );
+
+// @route   DELETE /api/admin/payments/:id
+// @desc    Delete payment record (Admin only)
+// @access  Private/Admin
+router.delete('/:id', protect, admin, deleteAdminPayment);
 
 // @route   PUT /api/admin/payments/:id/status
 // @desc    Update payment status (Admin only)

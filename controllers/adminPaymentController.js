@@ -9,6 +9,7 @@ import DirectPayment from '../model/directPayment.model.js';
 import User from '../model/User.js';
 import Course from '../model/course.model.js';
 import Candidate from '../model/Candidate.js';
+import PaymentLink from '../model/paymentLink.model.js';
 import { validationResult } from 'express-validator';
 import { sendBrandedEmailWithRecord } from '../utils/brandedEmailSender.js';
 import {
@@ -847,6 +848,53 @@ export const updateAdminPayment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to update payment record',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// @desc    Delete a payment record (Admin only)
+// @route   DELETE /api/admin/payments/:id
+// @access  Private/Admin
+export const deleteAdminPayment = async (req, res) => {
+  try {
+    const deleted = await DirectPayment.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment record not found',
+      });
+    }
+
+    // Clear dangling references on linked payment links or candidate records cleanly
+    await Promise.allSettled([
+      PaymentLink.updateMany(
+        { directPaymentId: deleted._id },
+        { $set: { directPaymentId: null } }
+      ),
+      Candidate.updateMany(
+        { paymentRecordId: deleted._id },
+        { $unset: { paymentRecordId: '' } }
+      ),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment record deleted successfully',
+      deletedId: deleted._id,
+    });
+  } catch (error) {
+    console.error('Error deleting admin payment:', error);
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment record not found',
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete payment record',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
