@@ -42,6 +42,15 @@ export const isAdmin = async (req, res, next) => {
       });
     }
 
+    if (user.isActive === false) {
+      return res.status(401).json({
+        success: false,
+        code: "ACCOUNT_INACTIVE",
+        accountInactive: true,
+        message: "Your account is not active. Please contact the administrator.",
+      });
+    }
+
     const isAuthorized =
       user.role === "admin" ||
       user.role === "employee" ||

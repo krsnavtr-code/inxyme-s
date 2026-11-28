@@ -396,6 +396,15 @@ export const verifyAdminOTP = catchAsync(async (req, res, next) => {
       return next(new AppError("No user found with that email address", 404));
     }
 
+    if (user.isActive === false) {
+      return next(
+        new AppError(
+          "Your account has been deactivated. Please contact the administrator.",
+          401,
+        ),
+      );
+    }
+
     // Check if user is admin or employee with role
     if (
       user.role !== "admin" &&
@@ -533,8 +542,7 @@ export const getUserProfile = catchAsync(async (req, res, next) => {
         email: user.email,
         role: user.role,
         isActive: user.isActive !== false,
-    isApproved: Boolean(user.isApproved),
-        isActive: user.isActive !== false,
+        isApproved: Boolean(user.isApproved),
         phone: user.phone || "",
         address: user.address || "",
         adminRoleId: user.adminRoleId,
@@ -653,6 +661,17 @@ export const refreshToken = catchAsync(async (req, res, next) => {
 
     if (!user) {
       return next(new AppError("User not found or invalid refresh token", 401));
+    }
+
+    if (user.isActive === false) {
+      user.refreshToken = undefined;
+      await user.save({ validateBeforeSave: false });
+      return next(
+        new AppError(
+          "Your account has been deactivated. Please contact the administrator.",
+          401,
+        ),
+      );
     }
 
     // Generate new tokens
@@ -909,6 +928,15 @@ export const verifyOTP = catchAsync(async (req, res, next) => {
       return next(new AppError("No user found with that email address", 404));
     }
 
+    if (user.isActive === false) {
+      return next(
+        new AppError(
+          "Your account has been deactivated. Please contact the administrator.",
+          401,
+        ),
+      );
+    }
+
     // Check if OTP exists and is not expired
     if (!user.emailVerificationOTP || !user.emailVerificationOTPExpires) {
       return next(new AppError("No OTP request found", 400));
@@ -1056,6 +1084,15 @@ export const resendOTP = catchAsync(async (req, res, next) => {
 
     if (!user) {
       return next(new AppError("No user found with that email address", 404));
+    }
+
+    if (user.isActive === false) {
+      return next(
+        new AppError(
+          "Your account has been deactivated. Please contact the administrator.",
+          401,
+        ),
+      );
     }
 
     // Check if already verified

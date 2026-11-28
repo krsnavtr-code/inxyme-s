@@ -150,21 +150,14 @@ export const protect = async (req, res, next) => {
         });
       }
 
-      // Check if user is active
-      if (!currentUser.isActive) {
+      // Check if user account is active (never gate admin panel by LMS isApproved status)
+      if (currentUser.isActive === false) {
         console.error("User account is not active:", currentUser.email);
         return res.status(401).json({
           success: false,
-          message: "User account is not active",
-        });
-      }
-
-      // Check if user is approved (if applicable)
-      if (currentUser.isApproved === false) {
-        console.error("User account not approved:", currentUser.email);
-        return res.status(403).json({
-          success: false,
-          message: "Your account is pending approval from the administrator.",
+          code: "ACCOUNT_INACTIVE",
+          accountInactive: true,
+          message: "Your account is not active. Please contact the administrator.",
         });
       }
 

@@ -121,9 +121,14 @@ export const updateUserStatus = async (req, res) => {
   try {
     const { isActive } = req.body;
 
+    const updatePayload = { isActive };
+    if (isActive === false) {
+      updatePayload.refreshToken = null;
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { isActive },
+      updatePayload,
       { new: true, runValidators: true },
     );
 

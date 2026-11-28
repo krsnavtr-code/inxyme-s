@@ -227,9 +227,14 @@ router.put(
     try {
       const { isActive } = req.body;
 
+      const updatePayload = { isActive };
+      if (isActive === false) {
+        updatePayload.refreshToken = null;
+      }
+
       const user = await User.findByIdAndUpdate(
         req.params.id,
-        { isActive },
+        updatePayload,
         { new: true, runValidators: true },
       );
 
@@ -443,9 +448,14 @@ router.put("/:id/status", [auth, isAdmin], async (req, res) => {
       return res.status(400).json({ message: "isActive must be a boolean" });
     }
 
+    const updatePayload = { isActive };
+    if (isActive === false) {
+      updatePayload.refreshToken = null;
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { isActive },
+      updatePayload,
       { new: true },
     ).select("-password");
 

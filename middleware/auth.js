@@ -61,6 +61,15 @@ export const protect = async (req, res, next) => {
           message: 'User not found with this ID.'
         });
       }
+      if (user.isActive === false) {
+        console.error('User account is not active:', user.email);
+        return res.status(401).json({
+          success: false,
+          code: 'ACCOUNT_INACTIVE',
+          accountInactive: true,
+          message: 'Your account is not active. Please contact the administrator.'
+        });
+      }
       if (user.password) {
         user.password = undefined;
       }
@@ -71,6 +80,7 @@ export const protect = async (req, res, next) => {
         id: user._id.toString(),
         email: user.email,
         role: user.role,
+        isActive: user.isActive !== false,
         adminRoleId: user.adminRoleId,
         adminPermissions: user.adminPermissions,
       };
